@@ -74,22 +74,23 @@ func (s *Service) ServeFeed(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
 		return
 	}
-	// When the scope names a vault, its access policies ride along: real Key
-	// Vault honours either access policies or RBAC per vault, and the data
-	// plane needs both the list and which mode the vault is in.
-	policies, rbacOnly, err := s.VaultAccessPolicies(scope)
+	// When the scope names a vault, its whole configuration rides along —
+	// access policies, the RBAC/access-policy switch, purge protection and
+	// the soft-delete window. In Azure those are properties of the ARM
+	// resource, so the data plane should learn them here rather than from
+	// its own flags.
+	vault, err := s.VaultConfigAt(scope)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
 		return
 	}
-	if policies == nil {
-		policies = []AccessPolicyEntry{}
-	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"scope":                   scope,
-		"generated":               s.Store.Now(),
-		"assignments":             eff,
-		"accessPolicies":          policies,
-		"enableRbacAuthorization": rbacOnly,
+		"scope":       scope,
+		"generated":   s.Store.Now(),
+		"assignments": eff,
+		"vault":       vault,
+		// Kept alongside `vault` for consumers pinned to the earlier shape.
+		"accessPolicies":          vault.AccessPolicies,
+		"enableRbacAuthorization": vault.EnableRbacAuthorization,
 	})
 }

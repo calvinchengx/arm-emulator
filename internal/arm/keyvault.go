@@ -319,6 +319,51 @@ func applyPolicyOp(current, incoming []AccessPolicyEntry, kind string) []AccessP
 	}
 }
 
+// VaultConfig is the vault-resource configuration a data plane needs: not
+// just who may do what, but how the vault itself is set up. In Azure these
+// are properties of the ARM resource, so this is where they belong.
+type VaultConfig struct {
+	Exists                  bool                `json:"exists"`
+	AccessPolicies          []AccessPolicyEntry `json:"accessPolicies"`
+	EnableRbacAuthorization bool                `json:"enableRbacAuthorization"`
+	EnablePurgeProtection   *bool               `json:"enablePurgeProtection,omitempty"`
+	EnableSoftDelete        *bool               `json:"enableSoftDelete,omitempty"`
+	SoftDeleteRetentionDays *int                `json:"softDeleteRetentionInDays,omitempty"`
+}
+
+// VaultConfigAt returns the configuration of the vault a scope names. A scope
+// that is not a vault, or a vault that does not exist, yields Exists=false —
+// the data plane then keeps its own defaults rather than being reconfigured
+// by an absent resource.
+func (s *Service) VaultConfigAt(scope string) (VaultConfig, error) {
+	out := VaultConfig{AccessPolicies: []AccessPolicyEntry{}}
+	sub := SubscriptionOf(scope)
+	name := vaultNameOf(scope)
+	if sub == "" || name == "" {
+		return out, nil
+	}
+	v, err := s.Store.GetVault(sub, name)
+	if errors.Is(err, store.ErrNotFound) {
+		return out, nil
+	}
+	if err != nil {
+		return out, err
+	}
+	var props vaultProperties
+	if err := json.Unmarshal([]byte(v.PropertiesJSON), &props); err != nil {
+		return out, err
+	}
+	out.Exists = true
+	if props.AccessPolicies != nil {
+		out.AccessPolicies = props.AccessPolicies
+	}
+	out.EnableRbacAuthorization = props.EnableRbacAuthorization != nil && *props.EnableRbacAuthorization
+	out.EnablePurgeProtection = props.EnablePurgeProtection
+	out.EnableSoftDelete = props.EnableSoftDelete
+	out.SoftDeleteRetentionDays = props.SoftDeleteRetention
+	return out, nil
+}
+
 // VaultAccessPolicies returns the access policies configured on the vault a
 // scope names, for the family feed. A scope that is not a vault, or a vault
 // that does not exist, yields none.
