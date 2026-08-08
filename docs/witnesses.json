@@ -94,22 +94,31 @@
       "go:TestFilterParsing"
     ]
   },
-  "microsoft-keyvault-vaults-crud-access-policies": {
-    "section": "arm",
-    "claim": "Microsoft.KeyVault/vaults CRUD + accessPolicies",
+  "vault-crud-microsoft-keyvault-vaults-with-tags-sku-vaulturi": {
+    "section": "Microsoft.KeyVault",
+    "claim": "Vault CRUD (`Microsoft.KeyVault/vaults`) with tags, SKU, `vaultUri`",
     "witnesses": [
       "go:TestArmKeyVaultSDK",
       "go:TestVaultLifecycleBranches",
-      "go:TestAccessPolicyOperations"
+      "go:TestVaultCRUD"
     ]
   },
-  "family-feed-carries-assignments-and-access-policies": {
-    "section": "arm",
-    "claim": "family feed: assignments + access policies",
+  "accesspolicies-the-add-replace-remove-operation": {
+    "section": "Microsoft.KeyVault",
+    "claim": "`accessPolicies` + the `add`/`replace`/`remove` operation",
     "witnesses": [
-      "go:TestFamilyFeed",
+      "go:TestArmKeyVaultSDK",
+      "go:TestAccessPolicyOperations",
+      "go:TestApplyPolicyOpNilCurrent"
+    ]
+  },
+  "enablerbacauthorization-enablepurgeprotection-soft-delete-settings": {
+    "section": "Microsoft.KeyVault",
+    "claim": "`enableRbacAuthorization`, `enablePurgeProtection`, soft-delete settings",
+    "witnesses": [
+      "go:TestArmKeyVaultSDK",
       "go:TestVaultAccessPoliciesForFeed",
-      "ci:arm-chain"
+      "go:TestVaultPropertiesEdgeCases"
     ]
   }
 }
