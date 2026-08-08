@@ -1,5 +1,9 @@
 # arm-emulator
 
+[![CI](https://github.com/calvinchengx/arm-emulator/actions/workflows/ci.yml/badge.svg)](https://github.com/calvinchengx/arm-emulator/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/calvinchengx/arm-emulator/actions/workflows/codeql.yml/badge.svg)](https://github.com/calvinchengx/arm-emulator/actions/workflows/codeql.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 A clean-room, local emulator of the **Azure Resource Manager control plane**
 (`management.azure.com`), scoped to what its sibling data planes need — the
 fourth member of an emulator family built on one principle: **the same trust

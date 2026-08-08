@@ -1,0 +1,21 @@
+version: 2
+
+# Managed dependency updates. This repo is Go-only (no site, no portal yet),
+# so the surface is the module graph and the Actions used by CI/release.
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # The Azure SDKs move together; a grouped PR keeps the witness suite
+      # upgrading as one compatible set rather than one client at a time.
+      azure-sdk:
+        patterns: ['github.com/Azure/azure-sdk-for-go/*']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
