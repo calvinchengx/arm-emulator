@@ -1,0 +1,97 @@
+{
+  "arm-audience-bearer-tokens-rs256-jwks-issuer-expiry": {
+    "section": "arm",
+    "claim": "arm-audience-bearer-tokens-rs256-jwks-issuer-expiry",
+    "witnesses": [
+      "go:TestValidateHappyPathUserAndApp",
+      "go:TestMultiIssuer",
+      "go:TestEnvelope"
+    ]
+  },
+  "401-www-authenticate-challenge-with-authenticationfailed": {
+    "section": "arm",
+    "claim": "401-www-authenticate-challenge-with-authenticationfailed",
+    "witnesses": [
+      "go:TestEnvelope"
+    ]
+  },
+  "resource-id-grammar-subscriptions-s-resourcegroups-g-providers-ns-type-n": {
+    "section": "arm",
+    "claim": "resource-id-grammar-subscriptions-s-resourcegroups-g-providers-ns-type-n",
+    "witnesses": [
+      "go:TestSplitProvider",
+      "go:TestArmAuthorizationSDK"
+    ]
+  },
+  "api-version-required-and-validated-date-based-preview": {
+    "section": "arm",
+    "claim": "api-version-required-and-validated-date-based-preview",
+    "witnesses": [
+      "go:TestEnvelope"
+    ]
+  },
+  "arm-error-envelope-x-ms-request-id-x-ms-correlation-request-id": {
+    "section": "arm",
+    "claim": "arm-error-envelope-x-ms-request-id-x-ms-correlation-request-id",
+    "witnesses": [
+      "go:TestEnvelope",
+      "go:TestResourceGroupAndAssignmentErrors"
+    ]
+  },
+  "resource-groups-crud-tags-case-insensitive-names-put-as-upsert": {
+    "section": "arm",
+    "claim": "resource-groups-crud-tags-case-insensitive-names-put-as-upsert",
+    "witnesses": [
+      "go:TestArmResourcesSDK",
+      "go:TestResourceGroupCRUD"
+    ]
+  },
+  "built-in-role-definitions-with-their-real-guids-and-documented-data-actions": {
+    "section": "arm",
+    "claim": "built-in-role-definitions-with-their-real-guids-and-documented-data-actions",
+    "witnesses": [
+      "go:TestArmAuthorizationSDK",
+      "go:TestRoleLookup"
+    ]
+  },
+  "role-assignments-put-get-delete-at-any-scope": {
+    "section": "arm",
+    "claim": "role-assignments-put-get-delete-at-any-scope",
+    "witnesses": [
+      "go:TestArmAuthorizationSDK",
+      "go:TestRoleAssignmentCRUD"
+    ]
+  },
+  "duplicate-scope-role-principal-roleassignmentexists": {
+    "section": "arm",
+    "claim": "duplicate-scope-role-principal-roleassignmentexists",
+    "witnesses": [
+      "go:TestArmAuthorizationSDK",
+      "go:TestRoleAssignmentCRUD"
+    ]
+  },
+  "assignment-to-a-nonexistent-role-definition-refused": {
+    "section": "arm",
+    "claim": "assignment-to-a-nonexistent-role-definition-refused",
+    "witnesses": [
+      "go:TestResourceGroupAndAssignmentErrors"
+    ]
+  },
+  "scope-inheritance-on-read-an-assignment-applies-to-every-scope-beneath-it": {
+    "section": "arm",
+    "claim": "scope-inheritance-on-read-an-assignment-applies-to-every-scope-beneath-it",
+    "witnesses": [
+      "go:TestArmAuthorizationSDK",
+      "go:TestScopeApplies",
+      "go:TestFamilyFeed"
+    ]
+  },
+  "filter-atscope-and-principalid-eq": {
+    "section": "arm",
+    "claim": "filter-atscope-and-principalid-eq",
+    "witnesses": [
+      "go:TestArmAuthorizationSDK",
+      "go:TestFilterParsing"
+    ]
+  }
+}

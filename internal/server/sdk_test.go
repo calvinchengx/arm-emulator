@@ -1,0 +1,298 @@
+package server_test
+
+// The P0 centerpiece: Microsoft's REAL management SDKs (armresources,
+// armauthorization) drive this emulator over ARM's wire, authenticating with
+// an ARM-audience token from an in-process entra-emulator — the production
+// trust path, fully offline.
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/calvinchengx/arm-emulator/internal/config"
+	"github.com/calvinchengx/arm-emulator/internal/server"
+	entra "github.com/calvinchengx/entra-emulator/emulator"
+)
+
+const subID = "00000000-0000-0000-0000-000000000001"
+
+type fixture struct {
+	t    *testing.T
+	emu  *entra.Emulator
+	srv  *httptest.Server
+	cred *azidentity.ClientSecretCredential
+	opts *arm.ClientOptions
+}
+
+// combinedTransport routes token traffic to entra's client and everything
+// else (ARM) to the httptest client — one Transporter for the SDK.
+type combinedTransport struct {
+	entraHost string
+	entra     *http.Client
+	arm       *http.Client
+}
+
+func (c *combinedTransport) Do(req *http.Request) (*http.Response, error) {
+	if req.URL.Host == c.entraHost {
+		return c.entra.Do(req)
+	}
+	return c.arm.Do(req)
+}
+
+func newFixture(t *testing.T) *fixture {
+	t.Helper()
+	// entra-emulator v0.2.1+ recognizes https://management.azure.com as a
+	// well-known Azure resource, so client-credentials resolves the ARM
+	// audience with no resource-app seed step.
+	emu := entra.StartT(t, entra.WithTLS())
+
+	cfg := &config.Config{
+		EntraIssuer:    emu.Origin + "/" + emu.TenantID + "/v2.0",
+		SubscriptionID: subID,
+		TenantID:       emu.TenantID,
+	}
+	if err := cfg.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	s, err := server.New(cfg, emu.HTTPClient())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	armSrv := httptest.NewTLSServer(s.Handler())
+	t.Cleanup(armSrv.Close)
+
+	transport := &combinedTransport{
+		entraHost: strings.TrimPrefix(emu.Origin, "https://"),
+		entra:     emu.HTTPClient(),
+		arm:       armSrv.Client(),
+	}
+	// The SDK's cloud configuration is what makes this real: the emulator is
+	// registered as an ARM endpoint with its own authority and audience,
+	// exactly how a sovereign cloud is configured.
+	cfgCloud := cloud.Configuration{
+		ActiveDirectoryAuthorityHost: emu.Origin,
+		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+			cloud.ResourceManager: {
+				Endpoint: armSrv.URL,
+				Audience: "https://management.azure.com",
+			},
+		},
+	}
+	cred, err := azidentity.NewClientSecretCredential(
+		emu.TenantID, entra.DaemonClientID, entra.DaemonSecret,
+		&azidentity.ClientSecretCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud:     cfgCloud,
+				Transport: transport,
+			},
+			DisableInstanceDiscovery: true,
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := &arm.ClientOptions{ClientOptions: policy.ClientOptions{
+		Cloud: cfgCloud, Transport: transport,
+	}}
+	return &fixture{t: t, emu: emu, srv: armSrv, cred: cred, opts: opts}
+}
+
+// TestArmResourcesSDK: the real armresources client creates, reads, lists and
+// deletes a resource group.
+func TestArmResourcesSDK(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	rgc, err := armresources.NewResourceGroupsClient(subID, f.cred, f.opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	created, err := rgc.CreateOrUpdate(ctx, "rg-e2e", armresources.ResourceGroup{
+		Location: to.Ptr("westeurope"),
+		Tags:     map[string]*string{"env": to.Ptr("test")},
+	}, nil)
+	if err != nil {
+		t.Fatalf("CreateOrUpdate: %v", err)
+	}
+	if created.Name == nil || *created.Name != "rg-e2e" {
+		t.Fatalf("created name = %v", created.Name)
+	}
+	if created.ID == nil || !strings.Contains(*created.ID, "/subscriptions/"+subID+"/resourceGroups/rg-e2e") {
+		t.Fatalf("created id = %v", created.ID)
+	}
+
+	got, err := rgc.Get(ctx, "rg-e2e", nil)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Tags["env"] == nil || *got.Tags["env"] != "test" {
+		t.Fatalf("tags did not round-trip: %v", got.Tags)
+	}
+
+	var names []string
+	pager := rgc.NewListPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		for _, g := range page.Value {
+			names = append(names, *g.Name)
+		}
+	}
+	if len(names) != 1 || names[0] != "rg-e2e" {
+		t.Fatalf("list = %v", names)
+	}
+
+	// A group that does not exist is a real 404 the SDK surfaces as an error.
+	if _, err := rgc.Get(ctx, "absent", nil); err == nil {
+		t.Fatal("Get of an absent group succeeded")
+	}
+}
+
+// TestArmAuthorizationSDK: the real armauthorization client reads built-in
+// role definitions and creates, reads, lists and deletes a role assignment —
+// the operations `az role assignment create` performs.
+func TestArmAuthorizationSDK(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	defs, err := armauthorization.NewRoleDefinitionsClient(f.cred, f.opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope := "/subscriptions/" + subID
+	// Filter by role name, as the CLI does when a role is named rather than
+	// given by GUID.
+	var secretsUserID string
+	pager := defs.NewListPager(scope, &armauthorization.RoleDefinitionsClientListOptions{
+		Filter: to.Ptr("roleName eq 'Key Vault Secrets User'"),
+	})
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			t.Fatalf("role definitions List: %v", err)
+		}
+		for _, d := range page.Value {
+			if d.Properties != nil && d.Properties.RoleName != nil &&
+				*d.Properties.RoleName == "Key Vault Secrets User" {
+				secretsUserID = *d.ID
+			}
+		}
+	}
+	if secretsUserID == "" {
+		t.Fatal("Key Vault Secrets User not found via the real SDK")
+	}
+	// Its data actions are the documented ones, so a consumer can act on them.
+	byID, err := defs.GetByID(ctx, strings.TrimPrefix(secretsUserID, "/"), nil)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if len(byID.Properties.Permissions) == 0 || len(byID.Properties.Permissions[0].DataActions) == 0 {
+		t.Fatalf("no dataActions on the role: %+v", byID.Properties)
+	}
+
+	assign, err := armauthorization.NewRoleAssignmentsClient(subID, f.cred, f.opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vaultScope := scope + "/resourceGroups/rg1/providers/Microsoft.KeyVault/vaults/myvault"
+	const assignmentName = "2b1d0a2e-1f2c-4a5b-9c3d-000000000001"
+	const principal = "aaaaaaaa-0000-0000-0000-000000000009"
+
+	created, err := assign.Create(ctx, vaultScope, assignmentName, armauthorization.RoleAssignmentCreateParameters{
+		Properties: &armauthorization.RoleAssignmentProperties{
+			RoleDefinitionID: to.Ptr(secretsUserID),
+			PrincipalID:      to.Ptr(principal),
+			PrincipalType:    to.Ptr(armauthorization.PrincipalTypeServicePrincipal),
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("role assignment Create: %v", err)
+	}
+	if created.Properties == nil || *created.Properties.PrincipalID != principal {
+		t.Fatalf("created = %+v", created.Properties)
+	}
+
+	got, err := assign.Get(ctx, vaultScope, assignmentName, nil)
+	if err != nil {
+		t.Fatalf("role assignment Get: %v", err)
+	}
+	if *got.Name != assignmentName {
+		t.Fatalf("get name = %v", *got.Name)
+	}
+
+	// The same role to the same principal at the same scope is a conflict.
+	if _, err := assign.Create(ctx, vaultScope, "3c2e1b3f-2a3d-4b6c-8d4e-000000000002",
+		armauthorization.RoleAssignmentCreateParameters{
+			Properties: &armauthorization.RoleAssignmentProperties{
+				RoleDefinitionID: to.Ptr(secretsUserID),
+				PrincipalID:      to.Ptr(principal),
+			},
+		}, nil); err == nil {
+		t.Fatal("duplicate assignment accepted")
+	}
+
+	// Inheritance: an assignment made at the vault is visible listing the
+	// vault scope, and a subscription-scoped one is visible there too.
+	const subAssignment = "4d3f2c40-3b4e-4c7d-9e5f-000000000003"
+	if _, err := assign.Create(ctx, scope, subAssignment,
+		armauthorization.RoleAssignmentCreateParameters{
+			Properties: &armauthorization.RoleAssignmentProperties{
+				RoleDefinitionID: to.Ptr(secretsUserID),
+				PrincipalID:      to.Ptr("bbbbbbbb-0000-0000-0000-000000000001"),
+			},
+		}, nil); err != nil {
+		t.Fatalf("subscription-scope Create: %v", err)
+	}
+	seen := map[string]bool{}
+	lp := assign.NewListForScopePager(vaultScope, nil)
+	for lp.More() {
+		page, err := lp.NextPage(ctx)
+		if err != nil {
+			t.Fatalf("ListForScope: %v", err)
+		}
+		for _, a := range page.Value {
+			seen[*a.Name] = true
+		}
+	}
+	if !seen[assignmentName] || !seen[subAssignment] {
+		t.Fatalf("inherited assignments not visible at the vault scope: %v", seen)
+	}
+
+	// atScope() narrows to exactly the vault scope.
+	atScope := map[string]bool{}
+	ap := assign.NewListForScopePager(vaultScope, &armauthorization.RoleAssignmentsClientListForScopeOptions{
+		Filter: to.Ptr("atScope()"),
+	})
+	for ap.More() {
+		page, err := ap.NextPage(ctx)
+		if err != nil {
+			t.Fatalf("ListForScope atScope(): %v", err)
+		}
+		for _, a := range page.Value {
+			atScope[*a.Name] = true
+		}
+	}
+	if !atScope[assignmentName] || atScope[subAssignment] {
+		t.Fatalf("atScope() filter wrong: %v", atScope)
+	}
+
+	if _, err := assign.Delete(ctx, vaultScope, assignmentName, nil); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if _, err := assign.Get(ctx, vaultScope, assignmentName, nil); err == nil {
+		t.Fatal("Get after Delete succeeded")
+	}
+}
