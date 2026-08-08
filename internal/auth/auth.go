@@ -131,15 +131,15 @@ func (v *Validator) Validate(token string) (*Principal, error) {
 		return nil, fmt.Errorf("%w: payload encoding", ErrBadToken)
 	}
 	var claims struct {
-		Iss   string          `json:"iss"`
-		Aud   json.RawMessage `json:"aud"`
-		Exp   int64           `json:"exp"`
-		Nbf   int64           `json:"nbf"`
-		Oid    string   `json:"oid"`
-		Groups []string `json:"groups"`
-		Sub   string          `json:"sub"`
-		AppID string          `json:"appid"`
-		IdTyp string          `json:"idtyp"`
+		Iss    string          `json:"iss"`
+		Aud    json.RawMessage `json:"aud"`
+		Exp    int64           `json:"exp"`
+		Nbf    int64           `json:"nbf"`
+		Oid    string          `json:"oid"`
+		Groups []string        `json:"groups"`
+		Sub    string          `json:"sub"`
+		AppID  string          `json:"appid"`
+		IdTyp  string          `json:"idtyp"`
 	}
 	if err := json.Unmarshal(payloadB, &claims); err != nil {
 		return nil, fmt.Errorf("%w: claims", ErrBadToken)
