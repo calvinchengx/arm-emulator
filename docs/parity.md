@@ -50,6 +50,7 @@ plainly what it leaves alone.
 | Assignment to a nonexistent role definition refused | `RoleDefinitionDoesNotExist` rather than a dangling reference | 🟢 Real |
 | **Scope inheritance** on read (an assignment applies to every scope beneath it) | Real, on segment boundaries and case-insensitively | 🟢 Real |
 | `$filter=atScope()` and `principalId eq '…'` | Honoured, as the CLI sends them | 🟢 Real |
+| Assignments to a **group** principal (`principalType: Group`) | Stored and served like any other; a member's token carries the group in its `groups` claim (entra-emulator ≥ v0.3.1) and the data plane resolves membership — a user never named in the assignment is authorized through it | 🟢 Real |
 | Custom role definitions (create/update) | Built-ins only | 🔴 Not implemented |
 | Deny assignments, PIM eligibility | — | 🔴 Not implemented |
 | ABAC `condition` evaluation | Stored and returned verbatim; **not evaluated** | 🟡 Emulated |

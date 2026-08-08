@@ -120,5 +120,13 @@
       "go:TestVaultAccessPoliciesForFeed",
       "go:TestVaultPropertiesEdgeCases"
     ]
+  },
+  "assignments-to-a-group-principal-principaltype-group": {
+    "section": "Microsoft.Authorization",
+    "claim": "Assignments to a **group** principal (`principalType: Group`)",
+    "witnesses": [
+      "go:TestArmAuthorizationSDK",
+      "go:TestRoleAssignmentCRUD"
+    ]
   }
 }
