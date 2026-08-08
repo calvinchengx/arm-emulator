@@ -315,3 +315,45 @@ func TestServerNewFailure(t *testing.T) {
 }
 
 var _ = entra.DaemonClientID
+
+// TestCloudMetadata: the anonymous cloud-discovery document `az cloud
+// register` fetches before it holds any token.
+func TestCloudMetadata(t *testing.T) {
+	r := newRaw(t)
+	// No token, no api-version — real ARM serves this to anyone.
+	code, body := r.do(t, "GET", "/metadata/endpoints", "", false)
+	if code != http.StatusOK {
+		t.Fatalf("metadata = %d %s", code, body)
+	}
+	var doc struct {
+		Authentication struct {
+			LoginEndpoint string   `json:"loginEndpoint"`
+			Audiences     []string `json:"audiences"`
+			Tenant        string   `json:"tenant"`
+		} `json:"authentication"`
+		Suffixes struct {
+			KeyVaultDNS string `json:"keyVaultDns"`
+		} `json:"suffixes"`
+		ResourceManager string `json:"resourceManager"`
+	}
+	if err := json.Unmarshal([]byte(body), &doc); err != nil {
+		t.Fatal(err)
+	}
+	// The login endpoint must be the issuer's ORIGIN — the CLI appends the
+	// tenant itself, so leaving the tenant on would double it.
+	if !strings.HasPrefix(doc.Authentication.LoginEndpoint, "https://") ||
+		strings.Contains(doc.Authentication.LoginEndpoint, "/v2.0") ||
+		strings.Contains(doc.Authentication.LoginEndpoint, doc.Authentication.Tenant) {
+		t.Fatalf("loginEndpoint = %q", doc.Authentication.LoginEndpoint)
+	}
+	if len(doc.Authentication.Audiences) == 0 ||
+		!strings.Contains(strings.Join(doc.Authentication.Audiences, ","), "management.azure.com") {
+		t.Fatalf("audiences = %v", doc.Authentication.Audiences)
+	}
+	if doc.Suffixes.KeyVaultDNS != "vault.azure.net" {
+		t.Fatalf("keyVaultDns = %q", doc.Suffixes.KeyVaultDNS)
+	}
+	if !strings.HasPrefix(doc.ResourceManager, "https://") {
+		t.Fatalf("resourceManager = %q", doc.ResourceManager)
+	}
+}

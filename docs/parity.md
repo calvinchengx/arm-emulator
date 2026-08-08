@@ -29,6 +29,7 @@ plainly what it leaves alone.
 | Resource-ID grammar (`/subscriptions/{s}/resourceGroups/{g}/providers/{ns}/{type}/{n}`) | Parsed as ARM parses it, including a provider path appended to a scope that itself contains one | 🟢 Real |
 | `api-version` required and validated (date-based, `-preview`) | Missing → `MissingApiVersionParameter`; malformed → `InvalidApiVersionParameter` | 🟢 Real |
 | ARM error envelope + `x-ms-request-id` / `x-ms-correlation-request-id` | On every response | 🟢 Real |
+| Cloud discovery (`GET /metadata/endpoints`, anonymous) | The real document, served without a token as ARM does — it is what `az cloud register` and SDK cloud-discovery fetch first, and it points them at entra-emulator | 🟢 Real |
 | Behaviour differentiated **by** api-version | Any valid version behaves identically | 🔴 Not implemented |
 
 ## Microsoft.Resources
@@ -87,7 +88,7 @@ plainly what it leaves alone.
 | `armkeyvault` (Azure Go SDK) | Vault create/get/list/delete, access-policy add and remove | 🟢 CI `test` |
 | `azidentity` (`ClientSecretCredential`, custom cloud) | The ARM-audience token path against an in-process real **entra-emulator** | 🟢 CI `test` |
 | **The authorization chain** (entra → ARM assignment → Key Vault data plane) | A role assignment written over ARM flips the vault from `403` to authorized, revocation flips it back, and an access policy grants it again — three real processes | 🟢 CI `arm-chain` (in azure-keyvault-emulator) |
-| **`az` CLI** via `az cloud register` | Planned (P3) — the flagship witness | 🔴 Not wired yet |
+| **`az` CLI** via `az cloud register` | The family registered as a cloud: login, group/vault create, role assignment create+delete, set-policy — asserted against the Key Vault data plane | 🟢 CI `az-cli` (in azure-keyvault-emulator) |
 | Python / JS / .NET management SDKs | Planned (P2) | 🔴 Not wired yet |
 
 Every 🟢 claim names its witness in [`witnesses.json`](witnesses.json),

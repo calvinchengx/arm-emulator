@@ -128,5 +128,12 @@
       "go:TestArmAuthorizationSDK",
       "go:TestRoleAssignmentCRUD"
     ]
+  },
+  "cloud-discovery-get-metadata-endpoints-anonymous": {
+    "section": "Envelope & identity",
+    "claim": "Cloud discovery (`GET /metadata/endpoints`, anonymous)",
+    "witnesses": [
+      "go:TestCloudMetadata"
+    ]
   }
 }

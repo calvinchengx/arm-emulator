@@ -161,3 +161,43 @@ func methodNotAllowed(w http.ResponseWriter, method string) {
 	writeErr(w, http.StatusMethodNotAllowed, "MethodNotAllowed",
 		fmt.Sprintf("The http method '%s' is not allowed on this resource.", method))
 }
+
+// ServeMetadata is GET /metadata/endpoints — the cloud-discovery document
+// real ARM serves ANONYMOUSLY, and the first thing `az cloud register` (and
+// every SDK doing cloud discovery) fetches. It advertises where to
+// authenticate and which audiences this cloud accepts, which is how the CLI
+// learns to send its tokens to entra-emulator.
+func (s *Service) ServeMetadata(w http.ResponseWriter, r *http.Request) {
+	// The login endpoint is the issuer's origin: the issuer is
+	// {origin}/{tenant}/v2.0, and the CLI appends the tenant itself.
+	authority := s.Cfg.Issuers()[0]
+	if i := strings.Index(authority, "/"+s.Cfg.TenantID); i > 0 {
+		authority = authority[:i]
+	} else {
+		authority = strings.TrimSuffix(strings.TrimSuffix(authority, "/"), "/v2.0")
+	}
+	self := "https://" + r.Host
+	writeJSON(w, http.StatusOK, map[string]any{
+		"galleryEndpoint": self + "/gallery",
+		"graphEndpoint":   authority,
+		"graphAudience":   authority + "/",
+		"portalEndpoint":  self + "/portal",
+		"authentication": map[string]any{
+			"loginEndpoint": authority + "/",
+			"audiences": []string{
+				"https://management.core.windows.net/",
+				"https://management.azure.com/",
+			},
+			"tenant":           s.Cfg.TenantID,
+			"identityProvider": "AAD",
+		},
+		"suffixes": map[string]any{
+			"keyVaultDns":                  "vault.azure.net",
+			"storage":                      "core.windows.net",
+			"sqlServerHostname":            "database.windows.net",
+			"azureFrontDoorEndpointSuffix": "azurefd.net",
+		},
+		"resourceManager": self,
+		"name":            "EmulatorCloud",
+	})
+}

@@ -38,6 +38,9 @@ func New(cfg *config.Config, jwksClient *http.Client) (*Server, error) {
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "now": ck.Now()})
 	})
 	s.mux.HandleFunc("GET /_family/authorization", a.ServeFeed)
+	// Cloud discovery, unauthenticated as in real ARM: `az cloud register`
+	// and SDK cloud-discovery fetch this before they hold any token.
+	s.mux.HandleFunc("GET /metadata/endpoints", a.ServeMetadata)
 	s.registerControl()
 	s.mux.Handle("/", a)
 	return s, nil
