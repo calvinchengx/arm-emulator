@@ -38,10 +38,10 @@ services:
       ARM_ENTRA_TLS_INSECURE: "true"
       ARM_TENANT_ID: "6f89cf12-978b-4d23-ac18-9ef0c127cf87"
       # The image bakes ARM_DATA_DIR=/data for callers who mount a volume
-      # there. This file mounts none, so leaving it set would still start — it
-      # would just write SQLite and the TLS cert into a container layer that
-      # `docker compose down` deletes. Empty runs in-memory instead, which is
-      # what a throwaway pair wants. To persist, drop this line and add:
+      # there. This file mounts none, so leaving it set would write SQLite and
+      # the TLS cert to an anonymous volume that outlives `docker compose
+      # down`. Empty runs in-memory instead — no volume, no leftovers — which
+      # is what a throwaway pair wants. To persist, drop this line and add:
       #   volumes: ["arm-data:/data"]     (plus a top-level `volumes: arm-data:`)
       ARM_DATA_DIR: ""
     healthcheck:
