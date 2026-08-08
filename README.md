@@ -23,8 +23,30 @@ closing the last emulated gap in the family's authorization story.
 
 ## Status
 
-**Design phase.** See [docs/01-design.md](docs/01-design.md) for the scope,
-phases, witness plan, and honest boundaries.
+**Working** — the ARM envelope (resource-ID grammar, error shape,
+ARM-audience tokens, anonymous cloud discovery), subscriptions and resource
+groups, `Microsoft.Authorization` role definitions and assignments with real
+scope inheritance, and `Microsoft.KeyVault/vaults` with access policies.
+Microsoft's own clients drive it unmodified — the **`az` CLI** via
+`az cloud register`, and the `armresources` / `armauthorization` /
+`armkeyvault` SDKs — and the assignments it stores are enforced by
+azure-keyvault-emulator's data plane. 98%+ coverage with a CI floor; every
+green parity claim names its witness.
+
+Install: `go install github.com/calvinchengx/arm-emulator/cmd/arm-emulator@latest`,
+`brew install calvinchengx/tap/arm-emulator`,
+`winget install calvinchengx.arm-emulator`, or the
+`ghcr.io/calvinchengx/arm-emulator` image (see
+[`docker-compose.yml`](docker-compose.yml) for the entra-emulator pairing).
+
+```bash
+make up       # entra-emulator + arm-emulator
+make status   # is the pair actually usable?
+make doctor   # what is missing from the toolchain?
+```
+
+See [docs/01-design.md](docs/01-design.md) for the scope and phases, and
+[docs/parity.md](docs/parity.md) for what is real versus emulated.
 
 ## License
 

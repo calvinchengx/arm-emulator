@@ -1,0 +1,103 @@
+# GoReleaser builds the cross-platform release binaries.
+# Run locally with `goreleaser release --snapshot --clean`.
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: arm-emulator
+    main: ./cmd/arm-emulator
+    binary: arm-emulator
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+# Homebrew tap: on each tag GoReleaser generates a cask and commits it to
+# calvinchengx/homebrew-tap, so `brew install
+# calvinchengx/tap/arm-emulator` works. Pushing to a separate repo
+# needs a HOMEBREW_TAP_TOKEN with write access; if it is absent the step
+# self-skips rather than failing the release.
+homebrew_casks:
+  - name: arm-emulator
+    repository:
+      owner: calvinchengx
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/calvinchengx/arm-emulator"
+    description: "A local emulator of the Azure Resource Manager control plane — subscriptions, resource groups and role assignments — in a single Go binary."
+    skip_upload: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}false{{ else }}true{{ end }}'
+    commit_author:
+      name: Calvin Cheng
+      email: calvin@calvinx.com
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/arm-emulator"]
+          end
+
+# winget: on each tag GoReleaser opens a manifest PR against microsoft/winget-pkgs
+# from a calvinchengx/winget-pkgs fork. Needs a WINGET_TOKEN; self-skips if absent.
+winget:
+  - name: arm-emulator
+    publisher: calvinchengx
+    package_identifier: calvinchengx.arm-emulator
+    license: Apache-2.0
+    homepage: "https://github.com/calvinchengx/arm-emulator"
+    short_description: "A local emulator of the Azure Resource Manager control plane and its role assignments."
+    description: |
+      ARM Emulator is a local, SDK-compatible emulator of the Azure Resource
+      Manager control plane: subscriptions, resource groups,
+      Microsoft.Authorization role definitions and role assignments (with real
+      scope inheritance), and Microsoft.KeyVault vault resources with their
+      access policies. Real management clients — the az CLI via
+      `az cloud register`, and the armresources / armauthorization / armkeyvault
+      SDKs — drive it unmodified, and the assignments it stores are enforced by
+      the sibling data-plane emulators. Local development tool only.
+    release_notes_url: "https://github.com/calvinchengx/arm-emulator/releases/tag/{{ .Tag }}"
+    tags:
+      - azure
+      - resource-manager
+      - rbac
+      - role-assignments
+      - emulator
+    repository:
+      owner: calvinchengx
+      name: winget-pkgs
+      branch: "arm-emulator-{{ .Version }}"
+      token: "{{ .Env.WINGET_TOKEN }}"
+      pull_request:
+        enabled: true
+        draft: false
+        base:
+          owner: microsoft
+          name: winget-pkgs
+          branch: master
+    skip_upload: '{{ if index .Env "WINGET_TOKEN" }}false{{ else }}true{{ end }}'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
