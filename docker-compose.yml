@@ -11,7 +11,10 @@ services:
       ORIGIN_MODE: compat
       PUBLIC_ORIGIN: "https://entra-emulator:8443"
     ports:
-      - "8443:8443"
+      # Overridable so this stack can coexist with the other emulator
+      # families' compose projects on one machine:
+      #   ENTRA_PORT=18443 ARM_PORT=18445 make up
+      - "${ENTRA_PORT:-8443}:8443"
     healthcheck:
       test: ["CMD", "/usr/local/bin/entra-emulator", "healthcheck"]
       interval: 5s
@@ -24,7 +27,7 @@ services:
       entra-emulator:
         condition: service_healthy
     ports:
-      - "8445:8445"
+      - "${ARM_PORT:-8445}:8445"
     environment:
       # The issuer ARM-audience tokens are validated against.
       # 11111111-… is entra's seeded tenant, and

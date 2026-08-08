@@ -103,6 +103,16 @@ jobs:
         if: runner.os == 'Linux'
         run: make doctor
 
+      # Build the image from THIS commit and tag it as the name compose
+      # expects, instead of pulling the last published one. Two reasons:
+      # the first release cannot pull an image that no release has pushed yet
+      # (the gate would deadlock on itself), and testing the source in the PR
+      # is what actually catches a broken Dockerfile — before the tag, not
+      # after it.
+      - name: Build the local image compose will use
+        if: runner.os == 'Linux'
+        run: docker build -t ghcr.io/${{ github.repository }}:latest .
+
       - name: make up / status / down
         if: runner.os == 'Linux'
         shell: bash

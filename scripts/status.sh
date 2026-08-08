@@ -20,8 +20,8 @@ case "$(uname -s 2>/dev/null || echo unknown)" in
 esac
 
 PROJECT="${COMPOSE_PROJECT_NAME:-arm-emulator}"
-ARM="${ARM_URL:-https://localhost:8445}"
-ENTRA="${ENTRA_URL:-https://localhost:8443}"
+ARM="${ARM_URL:-https://localhost:${ARM_PORT:-8445}}"
+ENTRA="${ENTRA_URL:-https://localhost:${ENTRA_PORT:-8443}}"
 TENANT="${TENANT_ID:-11111111-1111-1111-1111-111111111111}"
 RC=0
 
