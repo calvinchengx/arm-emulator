@@ -18,10 +18,10 @@ import (
 	"time"
 )
 
-// Hosts the certificate covers — local addressing plus the vault wildcard so
-// DNS-pinned SDK use ({name}.vault.azure.net -> 127.0.0.1) verifies.
+// Hosts the certificate covers — local addressing plus the ARM hostname so
+// DNS-pinned SDK use (management.azure.com -> 127.0.0.1) verifies.
 var Hosts = []string{
-	"localhost", "keyvault-emulator", "vault.azure.net", "*.vault.azure.net",
+	"localhost", "arm-emulator", "management.azure.com", "management.core.windows.net",
 }
 
 // Load returns a certificate, generating (and persisting when dataDir is
@@ -66,7 +66,7 @@ func generate() (certPEM, keyPEM []byte, err error) {
 	}
 	tpl := x509.Certificate{
 		SerialNumber:          serial,
-		Subject:               pkix.Name{CommonName: "azure-keyvault-emulator"},
+		Subject:               pkix.Name{CommonName: "arm-emulator"},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().AddDate(10, 0, 0),
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,

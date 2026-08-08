@@ -3,6 +3,8 @@ package tlscert
 import (
 	"crypto/x509"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -15,7 +17,7 @@ func TestLoadEphemeral(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, h := range []string{"localhost", "emulator.vault.azure.net", "vault.azure.net"} {
+	for _, h := range []string{"localhost", "management.azure.com", "management.core.windows.net"} {
 		if err := leaf.VerifyHostname(h); err != nil {
 			t.Errorf("cert does not cover %s: %v", h, err)
 		}
@@ -59,5 +61,47 @@ func TestLoadFailureModes(t *testing.T) {
 	os.WriteFile(dir2+"/tls/key.pem", []byte("garbage"), 0o600)
 	if _, err := Load(dir2); err != nil {
 		t.Fatalf("Load over corrupt PEMs = %v; want regeneration", err)
+	}
+}
+
+// TestLoadWriteFailures: with the tls directory unwritable, persisting a
+// freshly generated certificate must surface the error rather than serving
+// an unpersisted one. POSIX only — chmod does not write-protect a directory
+// on Windows.
+func TestLoadWriteFailures(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod cannot write-protect a directory on Windows")
+	}
+	// The tls/ directory exists but is read-only: the cert write fails.
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "tls"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Join(dir, "tls"), 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(filepath.Join(dir, "tls"), 0o700) })
+	if _, err := Load(dir); err == nil {
+		t.Fatal("Load with an unwritable tls dir succeeded")
+	}
+	_ = os.Chmod(filepath.Join(dir, "tls"), 0o700)
+
+	// The key path is a directory: the cert write succeeds, the key fails.
+	dir2 := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir2, "tls", "key.pem"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(dir2); err == nil {
+		t.Fatal("Load with key.pem as a directory succeeded")
+	}
+
+	// The data dir itself is a file: MkdirAll fails.
+	dir3 := t.TempDir()
+	f := filepath.Join(dir3, "notadir")
+	if err := os.WriteFile(f, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(f); err == nil {
+		t.Fatal("Load under a regular file succeeded")
 	}
 }

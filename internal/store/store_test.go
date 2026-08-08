@@ -165,3 +165,54 @@ func TestClosedDBErrors(t *testing.T) {
 		t.Fatal("DeleteRoleAssignment on a closed DB succeeded")
 	}
 }
+
+// TestScanErrors: SQLite stores whatever you insert regardless of column
+// affinity, so a text value in an INTEGER column makes Scan fail — the row
+// error path every list must surface rather than silently skip.
+func TestScanErrors(t *testing.T) {
+	s := newStore(t)
+	if _, err := s.db.Exec(`INSERT INTO resource_groups
+(subscription, name, location, tags_json, created_at) VALUES ('sub','rg','loc','{}','not-a-number')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ListResourceGroups("sub"); err == nil {
+		t.Fatal("ListResourceGroups ignored an unscannable row")
+	}
+	if _, err := s.GetResourceGroup("sub", "rg"); err == nil {
+		t.Fatal("GetResourceGroup ignored an unscannable row")
+	}
+
+	if _, err := s.db.Exec(`INSERT INTO role_assignments
+(name, scope, scope_display, role_definition_id, principal_id, principal_type,
+ description, condition, condition_version, created_at, updated_at, created_by)
+VALUES ('a','/s','/s','/d','p','User','','','','not-a-number',0,'')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ListRoleAssignments(); err == nil {
+		t.Fatal("ListRoleAssignments ignored an unscannable row")
+	}
+	if _, err := s.GetRoleAssignmentByName("a"); err == nil {
+		t.Fatal("GetRoleAssignmentByName ignored an unscannable row")
+	}
+	if _, err := s.DeleteRoleAssignment("a"); err == nil {
+		t.Fatal("DeleteRoleAssignment ignored an unscannable row")
+	}
+}
+
+// TestDeleteExecError: the row is found, then a BEFORE DELETE trigger aborts
+// the delete — the branch between a successful lookup and a failed write.
+func TestDeleteExecError(t *testing.T) {
+	s := newStore(t)
+	if err := s.CreateRoleAssignment(&RoleAssignment{
+		Name: "a1", ScopeDisplay: "/s", RoleDefinitionID: "/d", PrincipalID: "p",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec(`CREATE TRIGGER no_delete BEFORE DELETE ON role_assignments
+BEGIN SELECT RAISE(ABORT, 'delete refused'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DeleteRoleAssignment("a1"); err == nil {
+		t.Fatal("DeleteRoleAssignment ignored the aborted delete")
+	}
+}

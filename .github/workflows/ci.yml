@@ -25,12 +25,18 @@ jobs:
       # wire with an ARM-audience token.
       - run: go test -coverpkg=./... -coverprofile=cover.out ./...
         shell: bash
-      - name: Coverage floor (90%)
+      # 98%, not the family's usual 90%: everything reachable here IS covered,
+      # and the ~1% residue is branches that can only run if the standard
+      # library fails (crypto/rand erroring, sql.Open rejecting a compiled-in
+      # driver name). Faking those would mean adding mutable global seams to
+      # production crypto code, so they stay honestly uncovered — and the high
+      # floor stops real gaps hiding behind that residue.
+      - name: Coverage floor (98%)
         shell: bash
         run: |
           total=$(go tool cover -func=cover.out | tail -1 | awk '{print $3}' | tr -d '%')
           echo "total coverage: ${total}%"
-          awk -v t="$total" 'BEGIN { exit (t < 90) ? 1 : 0 }'
+          awk -v t="$total" 'BEGIN { exit (t < 98) ? 1 : 0 }'
 
   witnesses:
     name: Every green parity claim names its witness

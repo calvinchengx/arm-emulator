@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -163,5 +167,99 @@ func TestSubcommands(t *testing.T) {
 	t.Setenv("ARM_ADDR", "not-an-addr")
 	if err := run([]string{"healthcheck"}); err == nil {
 		t.Fatal("healthcheck with bad addr succeeded")
+	}
+}
+
+// TestMainFunc covers func main itself by re-executing this test binary as a
+// subprocess: the child runs main with a bad configuration and must exit
+// non-zero via log.Fatal, the one path main has.
+func TestMainFunc(t *testing.T) {
+	if os.Getenv("ARM_MAIN_CHILD") == "1" {
+		// No issuer configured, so run() errors and main log.Fatal()s.
+		os.Args = []string{"arm-emulator"}
+		main()
+		return
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(exe, "-test.run=TestMainFunc")
+	cmd.Env = append(os.Environ(), "ARM_MAIN_CHILD=1", "ARM_ENTRA_ISSUER=")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("main with no issuer exited 0: %s", out)
+	}
+	if !strings.Contains(string(out), "ARM_ENTRA_ISSUER is required") {
+		t.Fatalf("unexpected child output: %s", out)
+	}
+
+	// And the success path: `version` prints and returns cleanly.
+	cmd = exec.Command(exe, "-test.run=TestMainVersionChild")
+	cmd.Env = append(os.Environ(), "ARM_MAIN_VERSION_CHILD=1")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("main version child failed: %v %s", err, out)
+	} else if !strings.Contains(string(out), "arm-emulator") {
+		t.Fatalf("version output = %s", out)
+	}
+}
+
+func TestMainVersionChild(t *testing.T) {
+	if os.Getenv("ARM_MAIN_VERSION_CHILD") != "1" {
+		t.Skip("child-only")
+	}
+	os.Args = []string{"arm-emulator", "version"}
+	main()
+}
+
+// TestHealthcheckStatuses covers the fallback and non-200 branches.
+func TestHealthcheckStatuses(t *testing.T) {
+	// A plain-HTTP server: the https attempt fails, the http fallback wins.
+	ok := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ok.Close()
+	if err := healthcheck(strings.TrimPrefix(ok.URL, "http://")); err != nil {
+		t.Fatalf("healthcheck against a plain-HTTP server: %v", err)
+	}
+
+	// A server answering 503 is unhealthy.
+	sick := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer sick.Close()
+	if err := healthcheck(strings.TrimPrefix(sick.URL, "http://")); err == nil {
+		t.Fatal("healthcheck accepted a 503")
+	}
+
+	// Nothing listening: both schemes fail.
+	if err := healthcheck(fmt.Sprintf("127.0.0.1:%d", freePort(t))); err == nil {
+		t.Fatal("healthcheck against a dead port succeeded")
+	}
+	// A malformed address fails at parsing.
+	if err := healthcheck("not-an-address"); err == nil {
+		t.Fatal("healthcheck accepted a malformed address")
+	}
+	// A host-less address (the container form, ":8445") probes loopback.
+	if err := healthcheck(fmt.Sprintf(":%d", freePort(t))); err == nil {
+		t.Fatal("healthcheck against a dead loopback port succeeded")
+	}
+}
+
+// TestRunServerNewFailure: the data dir is creatable but the database path
+// inside it is a directory, so store.Open fails after MkdirAll succeeds —
+// run's server.New error branch.
+func TestRunServerNewFailure(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "arm-emulator.db"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	err := run([]string{
+		"-entra-issuer", "https://localhost:8443/tid/v2.0",
+		"-data-dir", dir,
+		"-addr", fmt.Sprintf("127.0.0.1:%d", freePort(t)),
+	})
+	if err == nil {
+		t.Fatal("run with an unusable database path succeeded")
 	}
 }

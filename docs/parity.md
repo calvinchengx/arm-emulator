@@ -90,3 +90,18 @@ as the sibling emulators.
 | **Management groups, multiple subscriptions, cross-tenant** | Directory topology, not authorization behaviour |
 | **Azure Policy, Activity Log, Resource Graph, locks** | Separate services layered on ARM |
 | **PIM / just-in-time elevation** | Requires an approval workflow and directory state no localhost process holds |
+
+## Test coverage
+
+**98.9%**, with a CI floor at 98%. Every reachable statement is covered,
+including the ARM error branches (tables dropped or `BEFORE DELETE` triggers
+fired under live handlers), the row-scan failures (SQLite's dynamic typing
+lets a text value sit in an INTEGER column), the TLS persistence failures,
+`func main` itself (re-executed as a subprocess), and the token paths where a
+signature verifies but the payload does not decode.
+
+What remains uncovered is only what cannot run unless the standard library
+fails: `crypto/rand` erroring (inside `NewGUID` and certificate generation)
+and `sql.Open` rejecting a driver name compiled into the binary. Reaching
+those would mean adding mutable global seams to production crypto code, so
+they stay honestly uncovered rather than faked.
