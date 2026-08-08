@@ -117,7 +117,7 @@
     "claim": "`enableRbacAuthorization`, `enablePurgeProtection`, soft-delete settings",
     "witnesses": [
       "go:TestArmKeyVaultSDK",
-      "go:TestVaultAccessPoliciesForFeed",
+      "go:TestVaultConfigAtForFeed",
       "go:TestVaultPropertiesEdgeCases"
     ]
   },

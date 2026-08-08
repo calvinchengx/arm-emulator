@@ -200,21 +200,53 @@ func TestAccessPolicyOperations(t *testing.T) {
 	}
 }
 
-func TestVaultAccessPoliciesForFeed(t *testing.T) {
+func TestVaultConfigAtForFeed(t *testing.T) {
 	s, _ := newService(t, "")
-	// Not a vault scope, and a vault that does not exist: no policies, no error.
+	// Not a vault scope, and a vault that does not exist: Exists=false, so the
+	// data plane keeps its own defaults instead of being reconfigured by an
+	// absent resource. The policy list is empty rather than nil either way.
 	for _, scope := range []string{"/subscriptions/" + testSub, vaultScopeFor("absent"), "/"} {
-		pol, rbac, err := s.VaultAccessPolicies(scope)
-		if err != nil || len(pol) != 0 || rbac {
-			t.Fatalf("VaultAccessPolicies(%q) = %v %v %v", scope, pol, rbac, err)
+		cfg, err := s.VaultConfigAt(scope)
+		if err != nil || cfg.Exists || cfg.AccessPolicies == nil || len(cfg.AccessPolicies) != 0 ||
+			cfg.EnableRbacAuthorization {
+			t.Fatalf("VaultConfigAt(%q) = %+v %v", scope, cfg, err)
+		}
+		// Nothing to apply: every optional property stays unset.
+		if cfg.EnablePurgeProtection != nil || cfg.EnableSoftDelete != nil ||
+			cfg.SoftDeleteRetentionDays != nil {
+			t.Fatalf("absent vault carried configuration: %+v", cfg)
 		}
 	}
+
 	// A vault in RBAC mode reports its policies and the flag.
 	seedVault(t, s, "v3", `{"enableRbacAuthorization":true,
 		"accessPolicies":[{"objectId":"p1","permissions":{"secrets":["get"]}}]}`)
-	pol, rbac, err := s.VaultAccessPolicies(vaultScopeFor("v3"))
-	if err != nil || len(pol) != 1 || !rbac {
-		t.Fatalf("RBAC vault = %v %v %v", pol, rbac, err)
+	cfg, err := s.VaultConfigAt(vaultScopeFor("v3"))
+	if err != nil || !cfg.Exists || len(cfg.AccessPolicies) != 1 || !cfg.EnableRbacAuthorization {
+		t.Fatalf("RBAC vault = %+v %v", cfg, err)
+	}
+
+	// The vault resource's own settings ride along, so a data plane learns
+	// purge protection and the soft-delete window from ARM rather than from
+	// its own flags.
+	seedVault(t, s, "v3p", `{"enablePurgeProtection":true,"enableSoftDelete":true,
+		"softDeleteRetentionInDays":7}`)
+	cfg, err = s.VaultConfigAt(vaultScopeFor("v3p"))
+	if err != nil || !cfg.Exists {
+		t.Fatalf("configured vault = %+v %v", cfg, err)
+	}
+	if cfg.EnablePurgeProtection == nil || !*cfg.EnablePurgeProtection ||
+		cfg.EnableSoftDelete == nil || !*cfg.EnableSoftDelete ||
+		cfg.SoftDeleteRetentionDays == nil || *cfg.SoftDeleteRetentionDays != 7 {
+		t.Fatalf("vault settings not carried: %+v", cfg)
+	}
+	// Unset is distinguishable from false — the data plane must be able to
+	// tell "the resource says no" from "the resource does not say".
+	seedVault(t, s, "v3q", `{}`)
+	cfg, err = s.VaultConfigAt(vaultScopeFor("v3q"))
+	if err != nil || !cfg.Exists || cfg.EnablePurgeProtection != nil ||
+		cfg.SoftDeleteRetentionDays != nil {
+		t.Fatalf("unset properties did not stay nil: %+v %v", cfg, err)
 	}
 
 	// vaultNameOf only matches a Microsoft.KeyVault vaults segment.
@@ -264,8 +296,8 @@ func TestVaultStorageFailures(t *testing.T) {
 			t.Errorf("%s with the vaults table dropped = %d %s", name, w.Code, w.Body.Bytes())
 		}
 	}
-	if _, _, err := s.VaultAccessPolicies(scope); err == nil {
-		t.Fatal("VaultAccessPolicies ignored the storage failure")
+	if _, err := s.VaultConfigAt(scope); err == nil {
+		t.Fatal("VaultConfigAt ignored the storage failure")
 	}
 }
 
@@ -305,7 +337,7 @@ func TestVaultPropertiesEdgeCases(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.VaultAccessPolicies(vaultScopeFor("broken")); err == nil {
+	if _, err := s.VaultConfigAt(vaultScopeFor("broken")); err == nil {
 		t.Fatal("unreadable vault properties did not error")
 	}
 	// A vault with no accessPolicies member reports an empty list, not nil.
@@ -314,9 +346,10 @@ func TestVaultPropertiesEdgeCases(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	pol, rbac, err := s.VaultAccessPolicies(vaultScopeFor("bare"))
-	if err != nil || pol == nil || len(pol) != 0 || rbac {
-		t.Fatalf("bare vault = %v %v %v", pol, rbac, err)
+	cfg, err := s.VaultConfigAt(vaultScopeFor("bare"))
+	if err != nil || cfg.AccessPolicies == nil || len(cfg.AccessPolicies) != 0 ||
+		cfg.EnableRbacAuthorization {
+		t.Fatalf("bare vault = %+v %v", cfg, err)
 	}
 }
 

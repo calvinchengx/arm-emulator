@@ -364,33 +364,6 @@ func (s *Service) VaultConfigAt(scope string) (VaultConfig, error) {
 	return out, nil
 }
 
-// VaultAccessPolicies returns the access policies configured on the vault a
-// scope names, for the family feed. A scope that is not a vault, or a vault
-// that does not exist, yields none.
-func (s *Service) VaultAccessPolicies(scope string) ([]AccessPolicyEntry, bool, error) {
-	sub := SubscriptionOf(scope)
-	name := vaultNameOf(scope)
-	if sub == "" || name == "" {
-		return nil, false, nil
-	}
-	v, err := s.Store.GetVault(sub, name)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, false, nil
-	}
-	if err != nil {
-		return nil, false, err
-	}
-	var props vaultProperties
-	if err := json.Unmarshal([]byte(v.PropertiesJSON), &props); err != nil {
-		return nil, false, err
-	}
-	rbacOnly := props.EnableRbacAuthorization != nil && *props.EnableRbacAuthorization
-	if props.AccessPolicies == nil {
-		props.AccessPolicies = []AccessPolicyEntry{}
-	}
-	return props.AccessPolicies, rbacOnly, nil
-}
-
 // vaultNameOf returns the vault name in a scope, or "".
 func vaultNameOf(scope string) string {
 	parts := strings.Split(strings.Trim(scope, "/"), "/")
