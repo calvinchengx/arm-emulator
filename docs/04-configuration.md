@@ -11,9 +11,23 @@ canonical wiring to entra-emulator, matching the sibling emulators.
 | `--entra-issuer` | `ARM_ENTRA_ISSUER` | *(required)* | The exact `iss` bearer tokens must carry. A comma-separated list trusts several issuers, each validated against its own JWKS. |
 | `--entra-jwks-url` | `ARM_ENTRA_JWKS_URL` | *(derived)* | Where signing keys are fetched; derived from the issuer when unset. |
 | `--entra-tls-insecure` | `ARM_ENTRA_TLS_INSECURE` | `false` | Skip TLS verification fetching JWKS — for a sibling emulator's self-signed cert. |
-| `--subscription-id` | `ARM_SUBSCRIPTION_ID` | `00000000-…-0001` | The seeded subscription every resource lives under. |
-| `--tenant-id` | `ARM_TENANT_ID` | `11111111-…-1111` | Reported by `/tenants` and on subscription resources. |
+| `--subscription-id` | `ARM_SUBSCRIPTION_ID` | `6082bfda-…-9feb` | The seeded subscription every resource lives under. |
+| `--tenant-id` | `ARM_TENANT_ID` | `6f89cf12-…-cf87` | Reported by `/tenants` and on subscription resources. |
 | `--disable-tls` | `ARM_DISABLE_TLS` | `false` | Serve plain HTTP (behind a terminating proxy, or for curl). |
+
+### Default IDs changed in v0.2.0 (breaking)
+
+The defaults were patterned placeholders; they are still fixed, only the values changed.
+
+| Setting | Old | New |
+|---|---|---|
+| `ARM_SUBSCRIPTION_ID` | `00000000-0000-0000-0000-000000000001` | `6082bfda-63d0-46f4-8272-ae9195139feb` |
+| `ARM_TENANT_ID` | `11111111-1111-1111-1111-111111111111` | `6f89cf12-978b-4d23-ac18-9ef0c127cf87` |
+
+The tenant must match `entra-emulator` v0.4.0+, whose seeded tenant moved to the same
+value — the quickstart's client-credentials exchange fails if the two disagree. Azure
+built-in role definition IDs (Owner, Contributor, Reader, the Key Vault roles) are real
+Azure identifiers and are unchanged.
 
 ## What is validated
 

@@ -19,7 +19,7 @@ container healthcheck runs the binary's own `healthcheck` subcommand.
 
 ```bash
 docker run --rm -p 8445:8445 \
-  -e ARM_ENTRA_ISSUER=https://host.docker.internal:8443/11111111-1111-1111-1111-111111111111/v2.0 \
+  -e ARM_ENTRA_ISSUER=https://host.docker.internal:8443/6f89cf12-978b-4d23-ac18-9ef0c127cf87/v2.0 \
   -e ARM_ENTRA_TLS_INSECURE=true \
   ghcr.io/calvinchengx/arm-emulator:latest
 ```

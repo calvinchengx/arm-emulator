@@ -22,7 +22,7 @@ esac
 PROJECT="${COMPOSE_PROJECT_NAME:-arm-emulator}"
 ARM="${ARM_URL:-https://localhost:${ARM_PORT:-8445}}"
 ENTRA="${ENTRA_URL:-https://localhost:${ENTRA_PORT:-8443}}"
-TENANT="${TENANT_ID:-11111111-1111-1111-1111-111111111111}"
+TENANT="${TENANT_ID:-6f89cf12-978b-4d23-ac18-9ef0c127cf87}"
 RC=0
 
 say() { printf '%s\n' "$*"; }

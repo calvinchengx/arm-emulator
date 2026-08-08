@@ -38,9 +38,9 @@ export REQUESTS_CA_BUNDLE=/path/to/emulator-certs.pem
 
 ```bash
 az login --service-principal \
-  -u cccccccc-0000-0000-0000-000000000002 \
+  -u 00d88624-f0d7-46f6-a641-6232c2608928 \
   -p daemon-app-secret \
-  --tenant 11111111-1111-1111-1111-111111111111 \
+  --tenant 6f89cf12-978b-4d23-ac18-9ef0c127cf87 \
   --allow-no-subscriptions
 
 az group create --name my-rg --location westeurope
@@ -50,7 +50,7 @@ az role assignment create \
   --role "Key Vault Secrets User" \
   --assignee-object-id <principal-oid> \
   --assignee-principal-type ServicePrincipal \
-  --scope /subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/my-rg/providers/Microsoft.KeyVault/vaults/myvault
+  --scope /subscriptions/6082bfda-63d0-46f4-8272-ae9195139feb/resourceGroups/my-rg/providers/Microsoft.KeyVault/vaults/myvault
 ```
 
 Those are real ARM calls. The seeded values are entra-emulator's public dev
@@ -64,7 +64,7 @@ at this emulator and it will:
 
 ```bash
 azure-keyvault-emulator -arm-url https://localhost:8445 \
-  -arm-subscription 00000000-0000-0000-0000-000000000001 \
+  -arm-subscription 6082bfda-63d0-46f4-8272-ae9195139feb \
   -arm-resource-group my-rg
 ```
 
@@ -76,7 +76,7 @@ in CI; see [The family feed](07-family-feed.md).
 
 ```bash
 go install github.com/calvinchengx/arm-emulator/cmd/arm-emulator@latest
-arm-emulator -entra-issuer https://localhost:8443/11111111-1111-1111-1111-111111111111/v2.0 \
+arm-emulator -entra-issuer https://localhost:8443/6f89cf12-978b-4d23-ac18-9ef0c127cf87/v2.0 \
              -entra-tls-insecure
 ```
 

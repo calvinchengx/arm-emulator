@@ -111,7 +111,7 @@ func TestVaultLifecycleBranches(t *testing.T) {
 	}
 	// An unknown subscription is refused too.
 	w = httptest.NewRecorder()
-	s.vaults(w, req("GET", "/x", ""), "/subscriptions/99999999-0000-0000-0000-000000000000", []string{"vaults"})
+	s.vaults(w, req("GET", "/x", ""), "/subscriptions/470cdf39-a19d-4440-a4c2-55568885427d", []string{"vaults"})
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("vaults under an unknown subscription = %d", w.Code)
 	}

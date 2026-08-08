@@ -38,8 +38,8 @@ type Config struct {
 
 // Defaults shared with the family's compose file and docs.
 const (
-	DefaultSubscription = "00000000-0000-0000-0000-000000000001"
-	DefaultTenant       = "11111111-1111-1111-1111-111111111111"
+	DefaultSubscription = "6082bfda-63d0-46f4-8272-ae9195139feb"
+	DefaultTenant       = "6f89cf12-978b-4d23-ac18-9ef0c127cf87"
 )
 
 // FromEnvPartial reads the environment without validating — cmd applies flag

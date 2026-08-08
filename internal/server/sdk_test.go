@@ -26,7 +26,7 @@ import (
 	entra "github.com/calvinchengx/entra-emulator/emulator"
 )
 
-const subID = "00000000-0000-0000-0000-000000000001"
+const subID = "6082bfda-63d0-46f4-8272-ae9195139feb"
 
 type fixture struct {
 	t    *testing.T
@@ -209,8 +209,8 @@ func TestArmAuthorizationSDK(t *testing.T) {
 		t.Fatal(err)
 	}
 	vaultScope := scope + "/resourceGroups/rg1/providers/Microsoft.KeyVault/vaults/myvault"
-	const assignmentName = "2b1d0a2e-1f2c-4a5b-9c3d-000000000001"
-	const principal = "aaaaaaaa-0000-0000-0000-000000000009"
+	const assignmentName = "e60e8095-0ea5-4039-8a03-0af68626c01b"
+	const principal = "9e0ec08a-e3ec-4c19-a32d-3994c6e61caa"
 
 	created, err := assign.Create(ctx, vaultScope, assignmentName, armauthorization.RoleAssignmentCreateParameters{
 		Properties: &armauthorization.RoleAssignmentProperties{
@@ -235,7 +235,7 @@ func TestArmAuthorizationSDK(t *testing.T) {
 	}
 
 	// The same role to the same principal at the same scope is a conflict.
-	if _, err := assign.Create(ctx, vaultScope, "3c2e1b3f-2a3d-4b6c-8d4e-000000000002",
+	if _, err := assign.Create(ctx, vaultScope, "4bae3e20-b7c8-408f-9ee4-80083988414f",
 		armauthorization.RoleAssignmentCreateParameters{
 			Properties: &armauthorization.RoleAssignmentProperties{
 				RoleDefinitionID: to.Ptr(secretsUserID),
@@ -247,12 +247,12 @@ func TestArmAuthorizationSDK(t *testing.T) {
 
 	// Inheritance: an assignment made at the vault is visible listing the
 	// vault scope, and a subscription-scoped one is visible there too.
-	const subAssignment = "4d3f2c40-3b4e-4c7d-9e5f-000000000003"
+	const subAssignment = "b0167eff-32ce-46da-86cd-3b4eb8dcf4f1"
 	if _, err := assign.Create(ctx, scope, subAssignment,
 		armauthorization.RoleAssignmentCreateParameters{
 			Properties: &armauthorization.RoleAssignmentProperties{
 				RoleDefinitionID: to.Ptr(secretsUserID),
-				PrincipalID:      to.Ptr("bbbbbbbb-0000-0000-0000-000000000001"),
+				PrincipalID:      to.Ptr("54a9d08c-889d-489e-b534-336fe19dbfce"),
 			},
 		}, nil); err != nil {
 		t.Fatalf("subscription-scope Create: %v", err)
@@ -335,7 +335,7 @@ func TestArmKeyVaultSDK(t *testing.T) {
 			EnablePurgeProtection: to.Ptr(true),
 			AccessPolicies: []*armkeyvault.AccessPolicyEntry{{
 				TenantID: to.Ptr(f.emu.TenantID),
-				ObjectID: to.Ptr("11110000-0000-0000-0000-000000000001"),
+				ObjectID: to.Ptr("0aec280f-25cc-4493-89ad-f381f646b279"),
 				Permissions: &armkeyvault.Permissions{
 					Secrets: []*armkeyvault.SecretPermissions{
 						to.Ptr(armkeyvault.SecretPermissionsGet), to.Ptr(armkeyvault.SecretPermissionsList),
@@ -373,7 +373,7 @@ func TestArmKeyVaultSDK(t *testing.T) {
 			Properties: &armkeyvault.VaultAccessPolicyProperties{
 				AccessPolicies: []*armkeyvault.AccessPolicyEntry{{
 					TenantID: to.Ptr(f.emu.TenantID),
-					ObjectID: to.Ptr("11110000-0000-0000-0000-000000000002"),
+					ObjectID: to.Ptr("80d828d5-dd38-4fa2-90e4-045e0feb7d3e"),
 					Permissions: &armkeyvault.Permissions{
 						Keys: []*armkeyvault.KeyPermissions{to.Ptr(armkeyvault.KeyPermissionsSign)},
 					},
@@ -392,7 +392,7 @@ func TestArmKeyVaultSDK(t *testing.T) {
 		armkeyvault.VaultAccessPolicyParameters{
 			Properties: &armkeyvault.VaultAccessPolicyProperties{
 				AccessPolicies: []*armkeyvault.AccessPolicyEntry{{
-					ObjectID: to.Ptr("11110000-0000-0000-0000-000000000001"),
+					ObjectID: to.Ptr("0aec280f-25cc-4493-89ad-f381f646b279"),
 				}},
 			},
 		}, nil)
@@ -400,7 +400,7 @@ func TestArmKeyVaultSDK(t *testing.T) {
 		t.Fatalf("UpdateAccessPolicy remove: %v", err)
 	}
 	if len(rem.Properties.AccessPolicies) != 1 ||
-		*rem.Properties.AccessPolicies[0].ObjectID != "11110000-0000-0000-0000-000000000002" {
+		*rem.Properties.AccessPolicies[0].ObjectID != "80d828d5-dd38-4fa2-90e4-045e0feb7d3e" {
 		t.Fatalf("after remove = %+v", rem.Properties.AccessPolicies)
 	}
 

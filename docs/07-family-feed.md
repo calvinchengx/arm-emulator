@@ -30,7 +30,7 @@ and the roles' `dataActions` verbatim, and stops.
   "generated": 1786000000,
   "assignments": [
     {
-      "principalId": "aaaaaaaa-…",
+      "principalId": "9e0ec08a-…",
       "principalType": "ServicePrincipal",
       "roleName": "Key Vault Secrets User",
       "roleDefinitionId": "/subscriptions/…/roleDefinitions/4633458b-…",

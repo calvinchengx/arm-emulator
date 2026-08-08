@@ -108,11 +108,11 @@ func TestEnvelope(t *testing.T) {
 		t.Fatalf("get subscription = %d %s", code, body)
 	}
 	// An unknown subscription 404s, both directly and under a resource path.
-	if code, body := r.do(t, "GET", "/subscriptions/99999999-0000-0000-0000-000000000000"+v, "", true); code != http.StatusNotFound ||
+	if code, body := r.do(t, "GET", "/subscriptions/470cdf39-a19d-4440-a4c2-55568885427d"+v, "", true); code != http.StatusNotFound ||
 		!strings.Contains(body, "SubscriptionNotFound") {
 		t.Fatalf("unknown subscription = %d %s", code, body)
 	}
-	if code, _ := r.do(t, "GET", "/subscriptions/99999999-0000-0000-0000-000000000000/resourcegroups"+v, "", true); code != http.StatusNotFound {
+	if code, _ := r.do(t, "GET", "/subscriptions/470cdf39-a19d-4440-a4c2-55568885427d/resourcegroups"+v, "", true); code != http.StatusNotFound {
 		t.Fatalf("unknown subscription rg list = %d", code)
 	}
 

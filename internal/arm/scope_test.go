@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	subScope   = "/subscriptions/00000000-0000-0000-0000-000000000001"
+	subScope   = "/subscriptions/6082bfda-63d0-46f4-8272-ae9195139feb"
 	rgScope    = subScope + "/resourceGroups/rg1"
 	vaultScope = rgScope + "/providers/Microsoft.KeyVault/vaults/myvault"
 )
@@ -57,7 +57,7 @@ func TestScopeChainAndParts(t *testing.T) {
 		t.Fatalf("root chain = %v", got)
 	}
 
-	if got := SubscriptionOf(vaultScope); got != "00000000-0000-0000-0000-000000000001" {
+	if got := SubscriptionOf(vaultScope); got != "6082bfda-63d0-46f4-8272-ae9195139feb" {
 		t.Fatalf("SubscriptionOf = %q", got)
 	}
 	if got := ResourceGroupOf(vaultScope); got != "rg1" {

@@ -20,7 +20,7 @@ import (
 	"github.com/calvinchengx/arm-emulator/internal/store"
 )
 
-const testSub = "00000000-0000-0000-0000-000000000001"
+const testSub = "6082bfda-63d0-46f4-8272-ae9195139feb"
 
 func newService(t *testing.T, dataDir string) (*Service, *store.Store) {
 	t.Helper()
@@ -137,7 +137,7 @@ func TestFeedSkipsDanglingRole(t *testing.T) {
 	// the feed skips it rather than reporting an empty-permission entry.
 	if err := st.CreateRoleAssignment(&store.RoleAssignment{
 		Name: "d1", ScopeDisplay: "/subscriptions/" + testSub,
-		RoleDefinitionID: "/providers/Microsoft.Authorization/roleDefinitions/00000000-dead-beef-0000-000000000000",
+		RoleDefinitionID: "/providers/Microsoft.Authorization/roleDefinitions/8bce0edd-d70c-43ae-8d40-1b502457ef7d",
 		PrincipalID:      "p1",
 	}); err != nil {
 		t.Fatal(err)
@@ -157,7 +157,7 @@ func TestAssignmentScopeSubscriptionCheck(t *testing.T) {
 	// is consulted.
 	w := httptest.NewRecorder()
 	s.roleAssignments(w, req("GET", "/x", ""),
-		"/subscriptions/99999999-0000-0000-0000-000000000000/resourceGroups/g", nil, caller)
+		"/subscriptions/470cdf39-a19d-4440-a4c2-55568885427d/resourceGroups/g", nil, caller)
 	if w.Code != http.StatusNotFound || !strings.Contains(w.Body.String(), "SubscriptionNotFound") {
 		t.Fatalf("unknown subscription scope = %d %s", w.Code, w.Body.Bytes())
 	}
@@ -280,7 +280,7 @@ func TestListAssignmentsScopeSkips(t *testing.T) {
 func TestResourceGroupUnknownSubscription(t *testing.T) {
 	s, _ := newService(t, "")
 	w := httptest.NewRecorder()
-	s.resourceGroup(w, req("GET", "/x", ""), "99999999-0000-0000-0000-000000000000", "rg")
+	s.resourceGroup(w, req("GET", "/x", ""), "470cdf39-a19d-4440-a4c2-55568885427d", "rg")
 	if w.Code != http.StatusNotFound || !strings.Contains(w.Body.String(), "SubscriptionNotFound") {
 		t.Fatalf("unknown subscription = %d %s", w.Code, w.Body.Bytes())
 	}
