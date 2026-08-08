@@ -2,13 +2,12 @@
 #
 # Scoped to FIRST-PARTY code only:
 #   - go                    the emulator (root module)
-#   - javascript-typescript the portal + docs website
+#   - javascript-typescript the docs website
 #   - actions               these workflows
 #
-# Deliberately NOT scanned: java-kotlin, swift, csharp, python — those exist
-# only as external-SDK e2e harnesses (e2e/java, e2e/dotnet, e2e/flutter) and the
-# msal-python sample, i.e. code we neither author nor ship. Autobuild also can't
-# build the Java sample, which is what broke Default setup.
+# Deliberately NOT scanned: python — it appears only as the az CLI witness
+# harness under e2e/, i.e. a driver for Microsoft's client rather than code we
+# author or ship.
 name: CodeQL
 
 on:
@@ -44,6 +43,8 @@ jobs:
         include:
           - language: go
             build-mode: autobuild
+          - language: javascript-typescript
+            build-mode: none
           - language: actions
             build-mode: none
     steps:
