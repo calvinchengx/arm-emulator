@@ -34,3 +34,6 @@ __pycache__/
 # .NET build output from the e2e SDK witness suite
 e2e/sdk/dotnet/bin/
 e2e/sdk/dotnet/obj/
+
+# Docs site (Astro Starlight): generated output and content.
+# website/.gitignore covers dist/, .astro/ and src/content/docs/.

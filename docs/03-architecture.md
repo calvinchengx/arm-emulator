@@ -1,4 +1,4 @@
-# 01 — Design: the family's management plane
+# 03 — Architecture
 
 A clean-room, local emulator of the **Azure Resource Manager (ARM) control
 plane** — `management.azure.com` — scoped to what the emulator family's data
@@ -26,7 +26,7 @@ real wire** — in Azure, role assignments and access policies are ARM
 resources. This emulator moves assignment onto the real protocol, flipping
 those rows 🟢 with real-client witnesses.
 
-## Scope (phased)
+## Scope and phases
 
 **P0 — the ARM envelope + authorization.**
 - ARM resource-ID grammar (`/subscriptions/{sub}/resourceGroups/{rg}/providers/{ns}/{type}/{name}`),

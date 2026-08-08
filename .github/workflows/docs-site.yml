@@ -1,0 +1,86 @@
+name: Docs site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'website/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - '.github/workflows/docs-site.yml'
+  # Pull requests build the site as a check, so a PR that breaks the docs
+  # generator fails here rather than after merge. Build only: the deploy job
+  # is skipped below.
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'website/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - '.github/workflows/docs-site.yml'
+  workflow_dispatch:
+
+# Allow the deploy job to publish to GitHub Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One in-flight deploy at a time; don't cancel a running publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Starlight site
+    runs-on: ubuntu-latest
+    steps:
+      # Full history + tags so the build can describe the current version.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter arm-emulator-docs build
+
+      # Badges are served from the site's own origin as shields `endpoint`
+      # documents — no third-party coverage service, no upload token. The Go
+      # figure is measured here rather than trusted from elsewhere, so the
+      # badge and the site always agree.
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+      - name: Measure coverage and write the badge endpoints
+        run: |
+          go test -coverpkg=./... -coverprofile=cover.out ./... >/dev/null
+          pct=$(go tool cover -func=cover.out | tail -1 | awk '{print $3}' | tr -d '%')
+          echo "go coverage: ${pct}%"
+          python3 scripts/coverage_badges.py --out website/dist --go "$pct"
+
+      - uses: actions/upload-pages-artifact@v5
+        if: github.event_name != 'pull_request'
+        with:
+          path: website/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    # PRs get the build as a check only. Deploying from a PR ref would be
+    # rejected by the github-pages environment regardless.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
