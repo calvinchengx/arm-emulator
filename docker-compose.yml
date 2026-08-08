@@ -10,6 +10,10 @@ services:
     environment:
       ORIGIN_MODE: compat
       PUBLIC_ORIGIN: "https://entra-emulator:8443"
+      # Seed the tenant arm-emulator expects. Without this, entra seeds its own
+      # default (1111…-1111) and every arm-side issuer/discovery URL below —
+      # which names 6f89cf12-… — 404s.
+      TENANT_ID: "6f89cf12-978b-4d23-ac18-9ef0c127cf87"
     ports:
       # Overridable so this stack can coexist with the other emulator
       # families' compose projects on one machine:
