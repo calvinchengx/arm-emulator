@@ -54,6 +54,16 @@ plainly what it leaves alone.
 | Deny assignments, PIM eligibility | — | 🔴 Not implemented |
 | ABAC `condition` evaluation | Stored and returned verbatim; **not evaluated** | 🟡 Emulated |
 
+## Microsoft.KeyVault
+
+| ARM feature | Emulator | Type |
+|---|---|---|
+| Vault CRUD (`Microsoft.KeyVault/vaults`) with tags, SKU, `vaultUri` | Real semantics, persisted; creation requires an existing resource group, as ARM requires | 🟢 Real |
+| `accessPolicies` + the `add`/`replace`/`remove` operation | Real: `add` merges by objectId, `replace` swaps the list, `remove` drops by objectId — what `az keyvault set-policy` / `delete-policy` call | 🟢 Real |
+| `enableRbacAuthorization`, `enablePurgeProtection`, soft-delete settings | Stored, returned, and **fed to the data plane** — RBAC mode makes the vault ignore access policies, as real Key Vault does | 🟢 Real |
+| Asynchronous vault create (`202` + polling) | Completes inline with a terminal `provisioningState` — the shape SDK pollers accept | 🟡 Emulated |
+| Private endpoints, network ACLs, deleted-vault recovery | — | 🔴 Not implemented |
+
 ## The family feed
 
 | Feature | Emulator | Type |
@@ -73,7 +83,9 @@ plainly what it leaves alone.
 |---|---|---|
 | `armresources` (Azure Go SDK) | Resource groups: create/get/list/delete, tags, 404s | 🟢 CI `test` |
 | `armauthorization` (Azure Go SDK) | Role definitions (list + `$filter` + get-by-id), role assignments (create/get/list/delete), duplicate conflict, inheritance, `atScope()` | 🟢 CI `test` |
+| `armkeyvault` (Azure Go SDK) | Vault create/get/list/delete, access-policy add and remove | 🟢 CI `test` |
 | `azidentity` (`ClientSecretCredential`, custom cloud) | The ARM-audience token path against an in-process real **entra-emulator** | 🟢 CI `test` |
+| **The authorization chain** (entra → ARM assignment → Key Vault data plane) | A role assignment written over ARM flips the vault from `403` to authorized, revocation flips it back, and an access policy grants it again — three real processes | 🟢 CI `arm-chain` (in azure-keyvault-emulator) |
 | **`az` CLI** via `az cloud register` | Planned (P3) — the flagship witness | 🔴 Not wired yet |
 | Python / JS / .NET management SDKs | Planned (P2) | 🔴 Not wired yet |
 

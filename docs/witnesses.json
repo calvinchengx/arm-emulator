@@ -93,5 +93,23 @@
       "go:TestArmAuthorizationSDK",
       "go:TestFilterParsing"
     ]
+  },
+  "microsoft-keyvault-vaults-crud-access-policies": {
+    "section": "arm",
+    "claim": "Microsoft.KeyVault/vaults CRUD + accessPolicies",
+    "witnesses": [
+      "go:TestArmKeyVaultSDK",
+      "go:TestVaultLifecycleBranches",
+      "go:TestAccessPolicyOperations"
+    ]
+  },
+  "family-feed-carries-assignments-and-access-policies": {
+    "section": "arm",
+    "claim": "family feed: assignments + access policies",
+    "witnesses": [
+      "go:TestFamilyFeed",
+      "go:TestVaultAccessPoliciesForFeed",
+      "ci:arm-chain"
+    ]
   }
 }

@@ -216,3 +216,84 @@ BEGIN SELECT RAISE(ABORT, 'delete refused'); END`); err != nil {
 		t.Fatal("DeleteRoleAssignment ignored the aborted delete")
 	}
 }
+
+func TestVaultCRUD(t *testing.T) {
+	s := newStore(t)
+	v := &Vault{Subscription: "sub", ResourceGroup: "rg", Name: "v1"}
+	if err := s.PutVault(v); err != nil {
+		t.Fatal(err)
+	}
+	// Defaults filled in.
+	if v.Location == "" || v.TagsJSON != "{}" || v.PropertiesJSON != "{}" {
+		t.Fatalf("defaults not applied: %+v", v)
+	}
+	// PUT is an upsert, and the name matches case-insensitively.
+	if err := s.PutVault(&Vault{Subscription: "sub", ResourceGroup: "rg2", Name: "v1",
+		Location: "eastus", TagsJSON: `{"a":"b"}`, PropertiesJSON: `{"x":1}`}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetVault("sub", "V1")
+	if err != nil || got.Location != "eastus" || got.ResourceGroup != "rg2" {
+		t.Fatalf("upsert = %+v %v", got, err)
+	}
+	if _, err := s.GetVault("sub", "absent"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("absent vault = %v", err)
+	}
+
+	// Listing by subscription, then narrowed to a resource group.
+	if err := s.PutVault(&Vault{Subscription: "sub", ResourceGroup: "other", Name: "v2"}); err != nil {
+		t.Fatal(err)
+	}
+	all, err := s.ListVaults("sub", "")
+	if err != nil || len(all) != 2 {
+		t.Fatalf("list all = %d %v", len(all), err)
+	}
+	narrowed, err := s.ListVaults("sub", "OTHER")
+	if err != nil || len(narrowed) != 1 || narrowed[0].Name != "v2" {
+		t.Fatalf("list by group = %+v %v", narrowed, err)
+	}
+	if l, _ := s.ListVaults("other-sub", ""); len(l) != 0 {
+		t.Fatalf("cross-subscription leak: %v", l)
+	}
+
+	if err := s.DeleteVault("sub", "v1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteVault("sub", "v1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("double delete = %v", err)
+	}
+
+	// An unscannable row surfaces as an error from both the get and the list.
+	if _, err := s.db.Exec(`INSERT INTO vaults
+(subscription, resource_group, name, location, tags_json, properties_json, created_at)
+VALUES ('sub','rg','bad','loc','{}','{}','not-a-number')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ListVaults("sub", ""); err == nil {
+		t.Fatal("ListVaults ignored an unscannable row")
+	}
+	if _, err := s.GetVault("sub", "bad"); err == nil {
+		t.Fatal("GetVault ignored an unscannable row")
+	}
+}
+
+func TestVaultClosedDBErrors(t *testing.T) {
+	s, err := Open("", clock.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	if err := s.PutVault(&Vault{Subscription: "s", Name: "v"}); err == nil {
+		t.Fatal("PutVault on a closed DB succeeded")
+	}
+	if _, err := s.ListVaults("s", ""); err == nil {
+		t.Fatal("ListVaults on a closed DB succeeded")
+	}
+	if err := s.DeleteVault("s", "v"); err == nil {
+		t.Fatal("DeleteVault on a closed DB succeeded")
+	}
+	// migrateVaults surfaces its own DDL failure.
+	if err := s.migrateVaults(); err == nil {
+		t.Fatal("migrateVaults on a closed DB succeeded")
+	}
+}

@@ -182,6 +182,11 @@ func (s *Service) route(w http.ResponseWriter, r *http.Request, p *auth.Principa
 				return
 			}
 		}
+		if strings.EqualFold(rest[0], "microsoft.keyvault") && len(rest) >= 2 &&
+			strings.EqualFold(rest[1], "vaults") {
+			s.vaults(w, r, scope, rest[1:])
+			return
+		}
 		writeErr(w, http.StatusBadRequest, "NoRegisteredProviderFound",
 			fmt.Sprintf("No registered resource provider found for location and API version for type '%s'.",
 				strings.Join(rest, "/")))

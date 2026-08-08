@@ -74,9 +74,22 @@ func (s *Service) ServeFeed(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
 		return
 	}
+	// When the scope names a vault, its access policies ride along: real Key
+	// Vault honours either access policies or RBAC per vault, and the data
+	// plane needs both the list and which mode the vault is in.
+	policies, rbacOnly, err := s.VaultAccessPolicies(scope)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
+		return
+	}
+	if policies == nil {
+		policies = []AccessPolicyEntry{}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"scope":       scope,
-		"generated":   s.Store.Now(),
-		"assignments": eff,
+		"scope":                   scope,
+		"generated":               s.Store.Now(),
+		"assignments":             eff,
+		"accessPolicies":          policies,
+		"enableRbacAuthorization": rbacOnly,
 	})
 }

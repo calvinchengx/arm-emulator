@@ -81,7 +81,10 @@ CREATE TABLE IF NOT EXISTS role_assignments (
 CREATE UNIQUE INDEX IF NOT EXISTS role_assignments_triple
 	ON role_assignments (scope, role_definition_id, principal_id);
 `)
-	return err
+	if err != nil {
+		return err
+	}
+	return s.migrateVaults()
 }
 
 // NewGUID returns a random RFC 4122 v4 UUID — the identifier shape ARM uses
@@ -94,4 +97,21 @@ func NewGUID() string {
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// migrateVaults adds the Microsoft.KeyVault/vaults table (P1). Kept separate
+// from migrate's core schema so each provider owns its own DDL.
+func (s *Store) migrateVaults() error {
+	_, err := s.db.Exec(`
+CREATE TABLE IF NOT EXISTS vaults (
+	subscription TEXT NOT NULL,
+	resource_group TEXT NOT NULL,
+	name TEXT NOT NULL,
+	location TEXT NOT NULL DEFAULT 'westeurope',
+	tags_json TEXT NOT NULL DEFAULT '{}',
+	properties_json TEXT NOT NULL DEFAULT '{}',
+	created_at INTEGER NOT NULL,
+	PRIMARY KEY (subscription, name COLLATE NOCASE)
+);`)
+	return err
 }

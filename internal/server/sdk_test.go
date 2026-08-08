@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/calvinchengx/arm-emulator/internal/config"
 	"github.com/calvinchengx/arm-emulator/internal/server"
@@ -293,6 +294,136 @@ func TestArmAuthorizationSDK(t *testing.T) {
 		t.Fatalf("Delete: %v", err)
 	}
 	if _, err := assign.Get(ctx, vaultScope, assignmentName, nil); err == nil {
+		t.Fatal("Get after Delete succeeded")
+	}
+}
+
+// TestArmKeyVaultSDK: the real armkeyvault client creates a vault, sets and
+// removes access policies, and reads them back — the operations
+// `az keyvault create` and `az keyvault set-policy` perform.
+func TestArmKeyVaultSDK(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	rgc, err := armresources.NewResourceGroupsClient(subID, f.cred, f.opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rgc.CreateOrUpdate(ctx, "rg-kv", armresources.ResourceGroup{
+		Location: to.Ptr("westeurope"),
+	}, nil); err != nil {
+		t.Fatalf("resource group: %v", err)
+	}
+
+	vc, err := armkeyvault.NewVaultsClient(subID, f.cred, f.opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A vault in a group that does not exist is refused, as ARM refuses it.
+	if _, err := vc.BeginCreateOrUpdate(ctx, "no-such-rg", "v1", armkeyvault.VaultCreateOrUpdateParameters{
+		Location:   to.Ptr("westeurope"),
+		Properties: &armkeyvault.VaultProperties{TenantID: to.Ptr(f.emu.TenantID)},
+	}, nil); err == nil {
+		t.Fatal("vault created in a nonexistent resource group")
+	}
+
+	poller, err := vc.BeginCreateOrUpdate(ctx, "rg-kv", "myvault", armkeyvault.VaultCreateOrUpdateParameters{
+		Location: to.Ptr("westeurope"),
+		Properties: &armkeyvault.VaultProperties{
+			TenantID:              to.Ptr(f.emu.TenantID),
+			SKU:                   &armkeyvault.SKU{Family: to.Ptr(armkeyvault.SKUFamilyA), Name: to.Ptr(armkeyvault.SKUNameStandard)},
+			EnablePurgeProtection: to.Ptr(true),
+			AccessPolicies: []*armkeyvault.AccessPolicyEntry{{
+				TenantID: to.Ptr(f.emu.TenantID),
+				ObjectID: to.Ptr("11110000-0000-0000-0000-000000000001"),
+				Permissions: &armkeyvault.Permissions{
+					Secrets: []*armkeyvault.SecretPermissions{
+						to.Ptr(armkeyvault.SecretPermissionsGet), to.Ptr(armkeyvault.SecretPermissionsList),
+					},
+				},
+			}},
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("BeginCreateOrUpdate: %v", err)
+	}
+	created, err := poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		t.Fatalf("PollUntilDone: %v", err)
+	}
+	if created.Properties == nil || created.Properties.VaultURI == nil ||
+		*created.Properties.VaultURI != "https://myvault.vault.azure.net/" {
+		t.Fatalf("vaultUri = %+v", created.Properties)
+	}
+	if len(created.Properties.AccessPolicies) != 1 {
+		t.Fatalf("access policies = %+v", created.Properties.AccessPolicies)
+	}
+
+	got, err := vc.Get(ctx, "rg-kv", "myvault", nil)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Properties.EnablePurgeProtection == nil || !*got.Properties.EnablePurgeProtection {
+		t.Fatalf("purge protection did not persist: %+v", got.Properties)
+	}
+
+	// set-policy: add a second principal, keeping the first.
+	upd, err := vc.UpdateAccessPolicy(ctx, "rg-kv", "myvault", armkeyvault.AccessPolicyUpdateKindAdd,
+		armkeyvault.VaultAccessPolicyParameters{
+			Properties: &armkeyvault.VaultAccessPolicyProperties{
+				AccessPolicies: []*armkeyvault.AccessPolicyEntry{{
+					TenantID: to.Ptr(f.emu.TenantID),
+					ObjectID: to.Ptr("11110000-0000-0000-0000-000000000002"),
+					Permissions: &armkeyvault.Permissions{
+						Keys: []*armkeyvault.KeyPermissions{to.Ptr(armkeyvault.KeyPermissionsSign)},
+					},
+				}},
+			},
+		}, nil)
+	if err != nil {
+		t.Fatalf("UpdateAccessPolicy add: %v", err)
+	}
+	if len(upd.Properties.AccessPolicies) != 2 {
+		t.Fatalf("after add = %d policies", len(upd.Properties.AccessPolicies))
+	}
+
+	// delete-policy: remove the first principal.
+	rem, err := vc.UpdateAccessPolicy(ctx, "rg-kv", "myvault", armkeyvault.AccessPolicyUpdateKindRemove,
+		armkeyvault.VaultAccessPolicyParameters{
+			Properties: &armkeyvault.VaultAccessPolicyProperties{
+				AccessPolicies: []*armkeyvault.AccessPolicyEntry{{
+					ObjectID: to.Ptr("11110000-0000-0000-0000-000000000001"),
+				}},
+			},
+		}, nil)
+	if err != nil {
+		t.Fatalf("UpdateAccessPolicy remove: %v", err)
+	}
+	if len(rem.Properties.AccessPolicies) != 1 ||
+		*rem.Properties.AccessPolicies[0].ObjectID != "11110000-0000-0000-0000-000000000002" {
+		t.Fatalf("after remove = %+v", rem.Properties.AccessPolicies)
+	}
+
+	// The vault lists under its resource group and under the subscription.
+	var names []string
+	lp := vc.NewListByResourceGroupPager("rg-kv", nil)
+	for lp.More() {
+		page, err := lp.NextPage(ctx)
+		if err != nil {
+			t.Fatalf("ListByResourceGroup: %v", err)
+		}
+		for _, v := range page.Value {
+			names = append(names, *v.Name)
+		}
+	}
+	if len(names) != 1 || names[0] != "myvault" {
+		t.Fatalf("list by group = %v", names)
+	}
+
+	if _, err := vc.Delete(ctx, "rg-kv", "myvault", nil); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if _, err := vc.Get(ctx, "rg-kv", "myvault", nil); err == nil {
 		t.Fatal("Get after Delete succeeded")
 	}
 }
