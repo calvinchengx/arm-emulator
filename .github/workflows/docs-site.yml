@@ -56,7 +56,7 @@ jobs:
       # documents — no third-party coverage service, no upload token. The Go
       # figure is measured here rather than trusted from elsewhere, so the
       # badge and the site always agree.
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.25'
       - name: Measure coverage and write the badge endpoints
