@@ -364,3 +364,38 @@ func TestRoleDefinitionCRUDAndClosedDB(t *testing.T) {
 		t.Error("AssignmentsForRole on a closed database succeeded")
 	}
 }
+
+func TestDeletedVaultStoreErrors(t *testing.T) {
+	s, err := Open("", clock.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Soft-deleting a vault that is not there reports not-found rather than
+	// recording an empty tombstone.
+	if err := s.SoftDeleteVault("sub", "absent", 90); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("soft delete of an absent vault = %v", err)
+	}
+	if err := s.PurgeVault("sub", "absent"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("purge of an absent vault = %v", err)
+	}
+	if _, err := s.RecoverVault("sub", "absent"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("recover of an absent vault = %v", err)
+	}
+
+	s.Close()
+	if err := s.SoftDeleteVault("sub", "v", 90); err == nil {
+		t.Error("SoftDeleteVault on a closed database succeeded")
+	}
+	if _, err := s.GetDeletedVault("sub", "v"); err == nil {
+		t.Error("GetDeletedVault on a closed database succeeded")
+	}
+	if _, err := s.ListDeletedVaults("sub"); err == nil {
+		t.Error("ListDeletedVaults on a closed database succeeded")
+	}
+	if err := s.PurgeVault("sub", "v"); err == nil {
+		t.Error("PurgeVault on a closed database succeeded")
+	}
+	if _, err := s.RecoverVault("sub", "v"); err == nil {
+		t.Error("RecoverVault on a closed database succeeded")
+	}
+}

@@ -207,3 +207,70 @@ func (s *Service) ServeMetadata(w http.ResponseWriter, r *http.Request) {
 		"name":            "EmulatorCloud",
 	})
 }
+
+// listResources is GET /subscriptions/{sub}/resources — the subscription-wide
+// tracked-resource list. The CLI reaches for it whenever a command names a
+// resource without its group (`az keyvault delete --name v`), so a client
+// that never sees it has to be told the group every time, which real users
+// are not.
+//
+// Only the resources this emulator actually holds are listed; `$filter` is
+// honoured for the two clauses the CLI sends, `resourceType eq` and
+// `name eq`.
+func (s *Service) listResources(w http.ResponseWriter, r *http.Request, sub string) {
+	if !s.checkSubscription(w, sub) {
+		return
+	}
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w, r.Method)
+		return
+	}
+	wantType := filterClause(r.URL.Query().Get("$filter"), "resourcetype")
+	wantName := filterClause(r.URL.Query().Get("$filter"), "name")
+
+	vs, err := s.Store.ListVaults(sub, "")
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
+		return
+	}
+	items := []map[string]any{}
+	for _, v := range vs {
+		const kind = "Microsoft.KeyVault/vaults"
+		if wantType != "" && !strings.EqualFold(wantType, kind) {
+			continue
+		}
+		if wantName != "" && !strings.EqualFold(wantName, v.Name) {
+			continue
+		}
+		tags := map[string]string{}
+		_ = json.Unmarshal([]byte(v.TagsJSON), &tags)
+		items = append(items, map[string]any{
+			"id":       vaultID(v.Subscription, v.ResourceGroup, v.Name),
+			"name":     v.Name,
+			"type":     kind,
+			"location": v.Location,
+			"tags":     tags,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"value": items})
+}
+
+// filterClause extracts N from `{key} eq 'N'` in an OData $filter, ignoring
+// case and any surrounding clauses.
+func filterClause(filter, key string) string {
+	low := strings.ToLower(filter)
+	i := strings.Index(low, key+" eq ")
+	if i < 0 {
+		return ""
+	}
+	rest := filter[i+len(key)+4:]
+	rest = strings.TrimSpace(rest)
+	if len(rest) == 0 || (rest[0] != '\'' && rest[0] != '"') {
+		return ""
+	}
+	quote := rest[0]
+	if j := strings.IndexByte(rest[1:], quote); j >= 0 {
+		return rest[1 : 1+j]
+	}
+	return ""
+}

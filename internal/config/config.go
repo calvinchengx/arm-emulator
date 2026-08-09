@@ -43,6 +43,9 @@ type Config struct {
 	LRODelaySeconds int64
 	// RetryAfterSeconds is advertised on 202s and in-progress polls.
 	RetryAfterSeconds int
+	// VaultRetentionDays is how long a soft-deleted vault stays
+	// recoverable. Real Key Vault allows 7-90; the default matches.
+	VaultRetentionDays int
 }
 
 // Defaults shared with the family's compose file and docs.
@@ -55,16 +58,17 @@ const (
 // overrides first, then calls Finish.
 func FromEnvPartial() *Config {
 	return &Config{
-		Addr:              envOr("ARM_ADDR", ":8445"),
-		DataDir:           os.Getenv("ARM_DATA_DIR"),
-		EntraIssuer:       os.Getenv("ARM_ENTRA_ISSUER"),
-		EntraJWKSURL:      os.Getenv("ARM_ENTRA_JWKS_URL"),
-		EntraTLSInsecure:  boolEnv("ARM_ENTRA_TLS_INSECURE"),
-		SubscriptionID:    envOr("ARM_SUBSCRIPTION_ID", DefaultSubscription),
-		TenantID:          envOr("ARM_TENANT_ID", DefaultTenant),
-		DisableTLS:        boolEnv("ARM_DISABLE_TLS"),
-		LRODelaySeconds:   int64(intEnv("ARM_LRO_DELAY_SECONDS", 0)),
-		RetryAfterSeconds: intEnv("ARM_RETRY_AFTER_SECONDS", 1),
+		Addr:               envOr("ARM_ADDR", ":8445"),
+		DataDir:            os.Getenv("ARM_DATA_DIR"),
+		EntraIssuer:        os.Getenv("ARM_ENTRA_ISSUER"),
+		EntraJWKSURL:       os.Getenv("ARM_ENTRA_JWKS_URL"),
+		EntraTLSInsecure:   boolEnv("ARM_ENTRA_TLS_INSECURE"),
+		SubscriptionID:     envOr("ARM_SUBSCRIPTION_ID", DefaultSubscription),
+		TenantID:           envOr("ARM_TENANT_ID", DefaultTenant),
+		DisableTLS:         boolEnv("ARM_DISABLE_TLS"),
+		LRODelaySeconds:    int64(intEnv("ARM_LRO_DELAY_SECONDS", 0)),
+		RetryAfterSeconds:  intEnv("ARM_RETRY_AFTER_SECONDS", 1),
+		VaultRetentionDays: intEnv("ARM_VAULT_RETENTION_DAYS", 90),
 	}
 }
 
@@ -120,6 +124,11 @@ func (c *Config) Finish() error {
 	}
 	if c.RetryAfterSeconds <= 0 {
 		c.RetryAfterSeconds = 1
+	}
+	// Real Key Vault accepts a 7-90 day retention window; anything outside
+	// it falls back to the default rather than inventing a policy.
+	if c.VaultRetentionDays < 7 || c.VaultRetentionDays > 90 {
+		c.VaultRetentionDays = 90
 	}
 	return nil
 }
