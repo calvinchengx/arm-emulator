@@ -29,7 +29,7 @@ mounting a volume there persists SQLite and the TLS cert across restarts:
 
 ```bash
 docker run --rm -p 8445:8445 -v arm-data:/data \
-  -e ARM_ENTRA_ISSUER=https://host.docker.internal:8443/11111111-1111-1111-1111-111111111111/v2.0 \
+  -e ARM_ENTRA_ISSUER=https://host.docker.internal:8443/6f89cf12-978b-4d23-ac18-9ef0c127cf87/v2.0 \
   ghcr.io/calvinchengx/arm-emulator:latest
 ```
 
