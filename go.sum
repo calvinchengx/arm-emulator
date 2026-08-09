@@ -24,8 +24,8 @@ github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 h1:RHK7bS+HQMs
 github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2/go.mod h1:HKpQxkWaGLJ+D/5H8QRpyQXA1eKjxkFlOMwck5+33Jk=
 github.com/brianvoe/gofakeit/v7 v7.15.0 h1:kGLYAWN8tnmxq2PelKVK6zwpM7kMxdz9SGPH31mFkNs=
 github.com/brianvoe/gofakeit/v7 v7.15.0/go.mod h1:QXuPeBw164PJCzCUZVmgpgHJ3Llj49jSLVkKPMtxtxA=
-github.com/calvinchengx/entra-emulator v0.3.1 h1:dEUmNWQWlxvF5CbXr9caRnPkr6dGZsQFugxJ0VKkT60=
-github.com/calvinchengx/entra-emulator v0.3.1/go.mod h1:N+f2ckcXICB8WVmvtVrjr6IXsKVjQMrDbdkqY0Kzwu0=
+github.com/calvinchengx/entra-emulator v0.4.0 h1:OXtmtf52T0l1jq3iXR7UgqB6sBBDaBIGVedccE6mJ94=
+github.com/calvinchengx/entra-emulator v0.4.0/go.mod h1:N+f2ckcXICB8WVmvtVrjr6IXsKVjQMrDbdkqY0Kzwu0=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/descope/virtualwebauthn v1.0.5 h1:fMXji5UMepJC51Ge6d4v5IAjiJQRKmXE9hlo/B9SczQ=
