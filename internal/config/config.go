@@ -16,8 +16,15 @@ import (
 type Config struct {
 	// Addr is the listen address, e.g. ":8445".
 	Addr string
-	// DataDir holds SQLite and TLS state. Empty means in-memory DB and
-	// ephemeral TLS keys.
+	// DataDir holds SQLite and TLS state. Defaults to ./data, so a plain
+	// `arm-emulator` keeps its role assignments and vaults across restarts —
+	// the same posture as entra-emulator, and what people expect of a local
+	// control plane they are building against.
+	//
+	// Setting ARM_DATA_DIR to the EMPTY string opts back into in-memory,
+	// which is distinct from leaving it unset. The compose files rely on that
+	// distinction to keep a throwaway stack from accumulating a SQLite file in
+	// a container layer that is about to be deleted.
 	DataDir string
 
 	// EntraIssuer is the exact iss expected in bearer tokens. A
@@ -59,7 +66,7 @@ const (
 func FromEnvPartial() *Config {
 	return &Config{
 		Addr:               envOr("ARM_ADDR", ":8445"),
-		DataDir:            os.Getenv("ARM_DATA_DIR"),
+		DataDir:            envDefault("ARM_DATA_DIR", DefaultDataDir),
 		EntraIssuer:        os.Getenv("ARM_ENTRA_ISSUER"),
 		EntraJWKSURL:       os.Getenv("ARM_ENTRA_JWKS_URL"),
 		EntraTLSInsecure:   boolEnv("ARM_ENTRA_TLS_INSECURE"),
@@ -131,6 +138,19 @@ func (c *Config) Finish() error {
 		c.VaultRetentionDays = 90
 	}
 	return nil
+}
+
+// DefaultDataDir is where state lands when ARM_DATA_DIR is not set at all.
+const DefaultDataDir = "./data"
+
+// envDefault distinguishes UNSET from SET-EMPTY, which envOr cannot: unset
+// takes the default, while an explicit empty value is honoured as empty. For
+// DataDir that difference is the difference between persisting and not.
+func envDefault(key, def string) string {
+	if v, ok := os.LookupEnv(key); ok {
+		return v
+	}
+	return def
 }
 
 func envOr(key, def string) string {

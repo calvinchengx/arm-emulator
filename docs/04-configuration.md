@@ -7,7 +7,7 @@ canonical wiring to entra-emulator, matching the sibling emulators.
 | Flag | Env | Default | Meaning |
 |---|---|---|---|
 | `--addr` | `ARM_ADDR` | `:8445` | Listen address. |
-| `--data-dir` | `ARM_DATA_DIR` | *(empty)* | State directory (SQLite + persisted TLS cert). Empty = in-memory DB and ephemeral TLS keys. |
+| `--data-dir` | `ARM_DATA_DIR` | `./data` | State directory (SQLite + persisted TLS cert), so resource groups, role assignments and vaults survive a restart. Set it to the **empty string** to opt back into an in-memory DB and ephemeral TLS keys — *unset* and *set-empty* differ deliberately, and the compose files use the empty form so a throwaway stack leaves nothing behind. |
 | `--entra-issuer` | `ARM_ENTRA_ISSUER` | *(required)* | The exact `iss` bearer tokens must carry. A comma-separated list trusts several issuers, each validated against its own JWKS. |
 | `--entra-jwks-url` | `ARM_ENTRA_JWKS_URL` | *(derived)* | Where signing keys are fetched; derived from the issuer when unset. |
 | `--entra-tls-insecure` | `ARM_ENTRA_TLS_INSECURE` | `false` | Skip TLS verification fetching JWKS — for a sibling emulator's self-signed cert. |
