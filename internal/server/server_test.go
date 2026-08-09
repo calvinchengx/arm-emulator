@@ -358,3 +358,34 @@ func TestCloudMetadata(t *testing.T) {
 		t.Fatalf("resourceManager = %q", doc.ResourceManager)
 	}
 }
+
+// TestDoubledSlashIsServedNotRedirected pins the behaviour that Microsoft's
+// JavaScript SDKs depend on. They build a request URL by joining their
+// endpoint to an ARM scope without normalizing the join, so every call they
+// make arrives as `//subscriptions/…`. net/http's ServeMux would answer that
+// with a 301 to the clean path, and a client following the redirect drops its
+// Authorization header — turning an authenticated request into a 401. Real
+// ARM serves it, so this emulator serves it.
+func TestDoubledSlashIsServedNotRedirected(t *testing.T) {
+	r := newRaw(t)
+
+	code, body := r.do(t, "GET", "//subscriptions/"+subID+
+		"/resourcegroups?api-version=2022-09-01", "", true)
+	if code != http.StatusOK {
+		t.Fatalf("a doubled slash returned %d %s (a redirect here costs the "+
+			"caller its Authorization header)", code, body)
+	}
+	// Several in a row, and one in the middle of the path, collapse too.
+	code, _ = r.do(t, "GET", "///subscriptions//"+subID+
+		"//resourcegroups?api-version=2022-09-01", "", true)
+	if code != http.StatusOK {
+		t.Fatalf("repeated slashes returned %d", code)
+	}
+	// The query string is untouched by the normalization.
+	code, body = r.do(t, "GET", "//subscriptions/"+subID+
+		"/providers/Microsoft.Authorization/roleDefinitions"+
+		"?api-version=2022-04-01&$filter=roleName+eq+'Reader'", "", true)
+	if code != http.StatusOK || !strings.Contains(string(body), "Reader") {
+		t.Fatalf("filter through a doubled slash = %d %s", code, body)
+	}
+}

@@ -16,6 +16,13 @@ speculatively.
   `groups` claim (needed entra-emulator v0.3.1's delegated Azure-resource
   carve-out).
 - **P3** — the `az` CLI as the flagship witness, via `az cloud register`.
+- **P9** — the **Python, JavaScript and .NET management SDKs** in CI, so no
+  claim rests on a single vendor's stack. Writing them found two real defects:
+  a 301 on a doubled slash that cost the JS clients their `Authorization`
+  header, and a ten-year TLS certificate that Apple platforms refuse to trust.
+- **P8** — **ABAC condition evaluation**: the version 2.0 language parsed and
+  evaluated, refused at write time when malformed, and decided through
+  `POST /_family/authorization/evaluate`.
 - **P7** — **deny assignments**: read-only over ARM as in Azure, and really
   evaluated — a deny beats the grant, with wildcards, notDataActions
   carve-outs, excluded principals and doNotApplyToChildScopes deciding it,
@@ -41,8 +48,6 @@ speculatively.
 - **Template deployments** (`Microsoft.Resources/deployments`) — the engine
   behind `az deployment group create` and Bicep. A large piece; worth it only
   when something in the family wants to stand a stack up from a template.
-- **ABAC condition evaluation** — conditions are stored and returned verbatim
-  today; evaluating them is a real feature, not a shape.
 
 ## Not planned
 

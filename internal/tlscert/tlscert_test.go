@@ -151,3 +151,42 @@ func TestPool(t *testing.T) {
 		t.Fatal("Pool accepted a file with no PEM certificate in it")
 	}
 }
+
+// TestCertificateIsTrustableOnApplePlatforms pins the constraint that made
+// this emulator unverifiable from .NET on macOS: Apple refuses to trust a TLS
+// server certificate whose validity exceeds 825 days, so a long-lived one
+// cannot be verified by any client built on the platform trust stack, even
+// when the developer deliberately trusts the file. The other requirements in
+// the same Apple rule are checked here too, since violating any of them has
+// the same effect and none of them is visible from a Go client.
+func TestCertificateIsTrustableOnApplePlatforms(t *testing.T) {
+	cert, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const appleMaxDays = 825
+	lifetime := leaf.NotAfter.Sub(leaf.NotBefore)
+	if days := lifetime.Hours() / 24; days > appleMaxDays {
+		t.Fatalf("certificate is valid for %.0f days; Apple platforms refuse "+
+			"anything over %d, so macOS clients cannot verify it", days, appleMaxDays)
+	}
+	// Apple also requires serverAuth in ExtendedKeyUsage, and the hostname in
+	// a SAN rather than only the common name.
+	serverAuth := false
+	for _, u := range leaf.ExtKeyUsage {
+		if u == x509.ExtKeyUsageServerAuth {
+			serverAuth = true
+		}
+	}
+	if !serverAuth {
+		t.Fatal("no serverAuth in ExtendedKeyUsage")
+	}
+	if err := leaf.VerifyHostname("localhost"); err != nil {
+		t.Fatalf("the certificate does not cover localhost: %v", err)
+	}
+}

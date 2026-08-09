@@ -13,6 +13,8 @@
     "section": "arm",
     "claim": "401-www-authenticate-challenge-with-authenticationfailed",
     "witnesses": [
+      "ci:sdks",
+      "sdk:TestArmEnvelopeSDK",
       "go:TestEnvelope"
     ]
   },
@@ -28,6 +30,7 @@
     "section": "arm",
     "claim": "api-version-required-and-validated-date-based-preview",
     "witnesses": [
+      "ci:az-cli",
       "go:TestEnvelope"
     ]
   },
@@ -35,6 +38,8 @@
     "section": "arm",
     "claim": "arm-error-envelope-x-ms-request-id-x-ms-correlation-request-id",
     "witnesses": [
+      "ci:sdks",
+      "sdk:TestArmEnvelopeSDK",
       "go:TestEnvelope",
       "go:TestResourceGroupAndAssignmentErrors"
     ]
@@ -43,6 +48,7 @@
     "section": "arm",
     "claim": "resource-groups-crud-tags-case-insensitive-names-put-as-upsert",
     "witnesses": [
+      "ci:sdks",
       "sdk:TestArmResourcesSDK",
       "go:TestResourceGroupCRUD",
       "ci:az-cli"
@@ -61,6 +67,7 @@
     "section": "arm",
     "claim": "role-assignments-put-get-delete-at-any-scope",
     "witnesses": [
+      "ci:sdks",
       "sdk:TestArmAuthorizationSDK",
       "go:TestRoleAssignmentCRUD",
       "ci:az-cli"
@@ -78,6 +85,7 @@
     "section": "arm",
     "claim": "assignment-to-a-nonexistent-role-definition-refused",
     "witnesses": [
+      "sdk:TestArmEnvelopeSDK",
       "go:TestResourceGroupAndAssignmentErrors"
     ]
   },
@@ -138,6 +146,7 @@
     "section": "Envelope & identity",
     "claim": "Cloud discovery (`GET /metadata/endpoints`, anonymous)",
     "witnesses": [
+      "ci:az-cli",
       "go:TestCloudMetadata"
     ]
   },
@@ -215,6 +224,36 @@
       "go:TestActionMatches",
       "go:TestDenyReachesTheFamilyFeed",
       "go:TestDenyStorageFailures"
+    ]
+  },
+  "abac-condition-evaluation": {
+    "section": "Microsoft.Authorization",
+    "claim": "abac-condition-evaluation",
+    "witnesses": [
+      "ci:sdks",
+      "sdk:TestArmConditionsSDK",
+      "ci:az-cli",
+      "go:TestConditionValidatedAtWriteTime",
+      "go:TestConditionDecidesTheOutcome",
+      "go:TestEvaluateOrdering",
+      "go:TestConditionOnTheFeed",
+      "go:TestUnparsableStoredConditionGrantsNothing",
+      "go:TestGuardedConditionNarrowsOnlyTheNamedAction",
+      "go:TestNegativeComparisonFailsOnMissingAttribute",
+      "go:TestOperators",
+      "go:TestQuantifiers",
+      "go:TestParseErrors"
+    ]
+  },
+  "the-authorization-decision-post-family-authorization-evaluate": {
+    "section": "Emulator-only",
+    "claim": "the-authorization-decision-post-family-authorization-evaluate",
+    "witnesses": [
+      "sdk:TestArmConditionsSDK",
+      "go:TestEvaluateEndpoint",
+      "go:TestEvaluateOrdering",
+      "go:TestGrantsActionArithmetic",
+      "go:TestEvaluateStorageFailures"
     ]
   }
 }

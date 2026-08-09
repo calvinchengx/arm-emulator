@@ -5,6 +5,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/calvinchengx/arm-emulator/internal/arm"
 	"github.com/calvinchengx/arm-emulator/internal/auth"
@@ -38,6 +39,9 @@ func New(cfg *config.Config, jwksClient *http.Client) (*Server, error) {
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "now": ck.Now()})
 	})
 	s.mux.HandleFunc("GET /_family/authorization", a.ServeFeed)
+	// The decision itself, for a data plane that would rather ask than
+	// reimplement ABAC condition evaluation.
+	s.mux.HandleFunc("/_family/authorization/evaluate", a.ServeEvaluate)
 	// Cloud discovery, unauthenticated as in real ARM: `az cloud register`
 	// and SDK cloud-discovery fetch this before they hold any token.
 	s.mux.HandleFunc("GET /metadata/endpoints", a.ServeMetadata)
@@ -47,7 +51,35 @@ func New(cfg *config.Config, jwksClient *http.Client) (*Server, error) {
 }
 
 // Handler returns the root handler.
-func (s *Server) Handler() http.Handler { return s.mux }
+func (s *Server) Handler() http.Handler { return collapseSlashes(s.mux) }
+
+// collapseSlashes serves a path containing doubled separators instead of
+// redirecting to the clean form, which is what net/http's ServeMux would do.
+//
+// This is not hypothetical tidiness. Microsoft's JavaScript management SDKs
+// build a URL by joining their endpoint to an ARM scope without normalizing
+// the join, so every request they send begins `//subscriptions/…`. Real ARM
+// answers those requests — the SDK could not work against Azure otherwise —
+// and a redirect here is worse than merely non-conforming: a client that
+// follows it drops the Authorization header on the way, so a properly
+// authenticated request arrives as an anonymous one and comes back 401. The
+// emulator therefore normalizes the path itself and carries on.
+func collapseSlashes(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "//") {
+			clean := *r.URL
+			for strings.Contains(clean.Path, "//") {
+				clean.Path = strings.ReplaceAll(clean.Path, "//", "/")
+			}
+			// RawPath only matters when it differs from Path (escaped
+			// segments); leaving it stale would make URL.EscapedPath lie.
+			clean.RawPath = ""
+			r = r.Clone(r.Context())
+			r.URL = &clean
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 // Close releases resources.
 func (s *Server) Close() error { return s.Store.Close() }

@@ -53,7 +53,7 @@ plainly what it leaves alone.
 | Assignments to a **group** principal (`principalType: Group`) | Stored and served like any other; a member's token carries the group in its `groups` claim (entra-emulator ≥ v0.3.1) and the data plane resolves membership — a user never named in the assignment is authorized through it | 🟢 Real |
 | Custom role definitions (create/update/delete) | Real CRUD at `PUT`/`DELETE .../roleDefinitions/{guid}`, listed and `$filter`ed beside the built-ins. **`assignableScopes` is enforced**, not just stored — an assignment outside them is refused; built-ins cannot be overwritten or deleted, display names are unique, and a definition still carrying assignments cannot be removed. Its `dataActions` flow through the family feed, so a role a caller invented genuinely grants data-plane access | 🟢 Real |
 | Deny assignments | Read-only over ARM, as in Azure (`GET`/list at any scope, `atScope()`, `principalId eq`, `denyAssignmentName eq`; every write refused, naming where they do come from), and **evaluated**: a deny beats the role assignment granting the same action. Wildcards spanning segment boundaries, `notDataActions` carve-outs, the all-principals GUID, `excludePrincipals`, group principals and `doNotApplyToChildScopes` all decide the outcome, and the result reaches the data planes through the family feed. Seeded through `/_emulator` because Azure has no public create API | 🟢 Real |
-| ABAC `condition` evaluation | Stored and returned verbatim; **not evaluated** | 🟡 Emulated |
+| ABAC `condition` evaluation | The version 2.0 language is **parsed and evaluated**: `ActionMatches` / `SubOperationMatches` guards, `@Resource` / `@Request` / `@Principal` / `@Environment` attributes, the string, numeric, datetime, bool and GUID operators, `Exists`, the four `ForAnyOf…`/`ForAllOf…` quantifiers, and `AND`/`OR`/`!()`. A condition ARM would reject is refused at write time (`InvalidCondition` with the offending position, `InvalidConditionVersion` for anything but 2.0) rather than stored, and a missing attribute fails the comparison closed — negative operators included, as in Azure. The verdict is available to the data planes | 🟢 Real |
 
 ## Microsoft.KeyVault
 
@@ -71,19 +71,22 @@ plainly what it leaves alone.
 |---|---|
 | Clock control (`/_emulator/clock`) | Freeze/advance/offset — makes token expiry deterministic |
 | Fault injection (`/_emulator/faults`) | Force `429` + `Retry-After` or `500`, to exercise SDK retry paths |
+| The authorization decision (`POST /_family/authorization/evaluate`) | One question, one answer: does this caller hold this action at this scope, given these request attributes? It applies ARM's own order — deny assignments override, then a role must grant the action, then its ABAC condition must be satisfied — and says which assignment decided it. Azure has no such public endpoint; conditions can only be evaluated where they can be parsed, so the alternative is every data plane reimplementing the language |
 | The family feed (`GET /_family/authorization?scope=…`) | Effective assignments plus their dataActions, for the sibling data planes. Azure's internal ARM→data-plane propagation is not public wire, so there is no ARM behaviour to grade this against — it is ours by necessity, and deliberately thin: assignments and role dataActions verbatim, each data plane mapping them onto its own operations |
 
 ## Ecosystem conformance: real clients as witnesses
 
 | Real client (pinned) | Surface exercised | Status |
 |---|---|---|
-| `armresources` (Azure Go SDK) | Resource groups: create/get/list/delete, tags, 404s | 🟢 CI `test` |
-| `armauthorization` (Azure Go SDK) | Role definitions (list + `$filter` + get-by-id), role assignments (create/get/list/delete), duplicate conflict, inheritance, `atScope()`; **deny assignments** get + list-for-scope with `atScope()` and `principalId` filters | 🟢 CI `test` |
+| `armresources` (Azure Go SDK) | Resource groups: create/get/list/delete, tags, 404s; the **401 challenge** (a garbage token, `azcore` reads `AuthenticationFailed` and the bearer challenge) and the **error envelope** parsed into a typed `ResponseError` with ARM's correlation headers | 🟢 CI `test` |
+| `armauthorization` (Azure Go SDK) | Role definitions (list + `$filter` + get-by-id), role assignments (create/get/list/delete), duplicate conflict, inheritance, `atScope()`, an assignment to a **nonexistent role definition refused**; **ABAC conditions** written, read back and refused when malformed; **deny assignments** get + list-for-scope with `atScope()` and `principalId` filters | 🟢 CI `test` |
 | `armkeyvault` (Azure Go SDK) | Vault create/get/list/delete, access-policy add and remove | 🟢 CI `test` |
 | `azidentity` (`ClientSecretCredential`, custom cloud) | The ARM-audience token path against an in-process real **entra-emulator** | 🟢 CI `test` |
 | **The authorization chain** (entra → ARM assignment → Key Vault data plane) | A role assignment written over ARM flips the vault from `403` to authorized, revocation flips it back, and an access policy grants it again — three real processes | 🟢 CI `arm-chain` (in azure-keyvault-emulator) |
-| **`az` CLI** via `az cloud register` | The family registered as a cloud: login, group/vault create, **custom role definition create/list/delete**, **vault delete/list-deleted/recover/purge**, **deny assignments read via `az rest` (and refused a write)**, role assignment create+delete, set-policy — asserted against the Key Vault data plane | 🟢 CI `az-cli` (in azure-keyvault-emulator) |
-| Python / JS / .NET management SDKs | Planned (P2) | 🔴 Not wired yet |
+| **`az` CLI** via `az cloud register` | The family registered as a cloud — including **autodetection from `/metadata/endpoints`**, where one flag registers a cloud and the CLI discovers the login endpoint it could not have guessed — then login, **`api-version` missing and malformed both refused** (`az rest`, the only client that sends a raw URL), group/vault create, **custom role definition create/list/delete**, **vault delete/list-deleted/recover/purge**, **deny assignments read via `az rest` (and refused a write)**, **role assignment with `--condition` (and a malformed one refused)**, role assignment create+delete, set-policy — asserted against the Key Vault data plane | 🟢 CI `az-cli` (in azure-keyvault-emulator) |
+| **Python** (`azure-mgmt-resource`, `azure-mgmt-authorization`, `azure-identity`) | Token, resource groups (create/get/list/delete), the error envelope typed, role definitions with `$filter`, role assignments, an ABAC condition written and a malformed one refused, a garbage token challenged | 🟢 CI `sdks` |
+| **JavaScript** (`@azure/arm-resources`, `@azure/arm-authorization`, `@azure/identity`) | The same, in its own idiom. Found a real defect: these clients join endpoint and scope without normalizing, so every request begins `//subscriptions/…`, and a redirect to the clean path cost them their `Authorization` header | 🟢 CI `sdks` |
+| **.NET** (`Azure.ResourceManager.*`, `Azure.Identity`) | The same again, against a custom `ArmEnvironment`, pinning the emulator's certificate rather than disabling validation. Found a second defect: a ten-year certificate that Apple platforms refuse to trust at all | 🟢 CI `sdks` |
 
 Every 🟢 claim names its witness in [`witnesses.json`](witnesses.json),
 enforced by `scripts/check_witnesses.py --strict` in CI — the same discipline
@@ -110,7 +113,7 @@ what it did not set out to do, and why.
 
 ## Test coverage
 
-**98.3%**, with a CI floor at 98%. Every reachable statement is covered,
+**98.7%**, with a CI floor at 98%. Every reachable statement is covered,
 including the ARM error branches (tables dropped or `BEFORE DELETE` triggers
 fired under live handlers), the row-scan failures (SQLite's dynamic typing
 lets a text value sit in an INTEGER column), the TLS persistence failures,

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ArmEmulator.SdkHarness</RootNamespace>
+    <AssemblyName>arm-emulator-dotnet-e2e</AssemblyName>
+    <!-- The harness is a script in all but name; its own analyzers add noise. -->
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.17.0" />
+    <PackageReference Include="Azure.ResourceManager.Resources" Version="1.11.0" />
+    <PackageReference Include="Azure.ResourceManager.Authorization" Version="1.1.4" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,7 @@
+# This harness is its own pnpm workspace root, deliberately.
+#
+# Without this file pnpm walks up to the repository root and folds the harness
+# into the docs-site workspace, which would put three Azure SDKs into the
+# lockfile every docs build installs from. The harness is only ever run by
+# e2e/sdks/run.py, so it keeps its own lockfile and its own node_modules.
+packages: []
