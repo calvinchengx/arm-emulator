@@ -180,5 +180,26 @@
       "go:TestCustomRoleAssignableScopes",
       "go:TestCustomRoleStorageFailures"
     ]
+  },
+  "deleted-vault-recovery-vault-level-soft-delete-purge": {
+    "section": "Microsoft.KeyVault",
+    "claim": "deleted-vault-recovery-vault-level-soft-delete-purge",
+    "witnesses": [
+      "ci:az-cli",
+      "go:TestVaultSoftDeleteRecoverPurge",
+      "go:TestVaultRetentionWindowOnTheClock",
+      "go:TestDeletedVaultErrors",
+      "go:TestSoftDeleteIsAtomic",
+      "go:TestRecoveryIsAtomic"
+    ]
+  },
+  "subscription-wide-resource-list-get-subscriptions-sub-resources": {
+    "section": "Microsoft.Resources",
+    "claim": "subscription-wide-resource-list-get-subscriptions-sub-resources",
+    "witnesses": [
+      "ci:az-cli",
+      "go:TestListResources",
+      "go:TestListResourcesStorageFailure"
+    ]
   }
 }

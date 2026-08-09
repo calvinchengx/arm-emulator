@@ -195,14 +195,28 @@ func (s *Service) route(w http.ResponseWriter, r *http.Request, p *auth.Principa
 				return
 			}
 		}
-		if strings.EqualFold(rest[0], "microsoft.keyvault") && len(rest) >= 2 &&
-			strings.EqualFold(rest[1], "vaults") {
-			s.vaults(w, r, scope, rest[1:])
-			return
+		if strings.EqualFold(rest[0], "microsoft.keyvault") && len(rest) >= 2 {
+			switch {
+			case strings.EqualFold(rest[1], "vaults"):
+				s.vaults(w, r, scope, rest[1:])
+				return
+			// A deleted vault is addressed either subscription-wide or
+			// under its location, as Key Vault addresses it.
+			case strings.EqualFold(rest[1], "deletedvaults"), strings.EqualFold(rest[1], "locations"):
+				s.deletedVaults(w, r, scope, rest[1:])
+				return
+			}
 		}
 		writeErr(w, http.StatusBadRequest, "NoRegisteredProviderFound",
 			fmt.Sprintf("No registered resource provider found for location and API version for type '%s'.",
 				strings.Join(rest, "/")))
+		return
+	}
+
+	// The subscription-wide tracked-resource list.
+	if len(segs) == 3 && strings.EqualFold(segs[0], "subscriptions") &&
+		strings.EqualFold(segs[2], "resources") {
+		s.listResources(w, r, segs[1])
 		return
 	}
 

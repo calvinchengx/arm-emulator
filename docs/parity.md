@@ -37,6 +37,7 @@ plainly what it leaves alone.
 |---|---|---|
 | Tenants + subscriptions discovery (`/tenants`, `/subscriptions`) | Served as real ARM serves it, unknown ids `SubscriptionNotFound`. The tenant holds one subscription — a declared boundary below, not a simplification of the surface | 🟢 Real |
 | Resource groups CRUD + tags (case-insensitive names, PUT-as-upsert) | Real semantics, persisted | 🟢 Real |
+| Subscription-wide resource list (`GET /subscriptions/{sub}/resources`) | What the CLI consults when a command names a resource without its group (`az keyvault delete --name v`); `$filter` honoured for `resourceType eq` and `name eq` | 🟢 Real |
 | Asynchronous group delete (`202` + `Location` polling) | `202` naming a `Location` to poll, `Retry-After`, `202` while it runs and `200` when done — an `armresources` poller genuinely spins, observing `InProgress` before `Succeeded`; `204` when there was nothing to delete | 🟢 Real |
 
 ## Microsoft.Authorization
@@ -62,7 +63,7 @@ plainly what it leaves alone.
 | `accessPolicies` + the `add`/`replace`/`remove` operation | Real: `add` merges by objectId, `replace` swaps the list, `remove` drops by objectId — what `az keyvault set-policy` / `delete-policy` call | 🟢 Real |
 | `enableRbacAuthorization`, `enablePurgeProtection`, soft-delete settings | Stored, returned, and **fed to the data plane** — RBAC mode makes the vault ignore access policies, as real Key Vault does | 🟢 Real |
 | Asynchronous vault create (`202` + polling) | `201`/`200` naming an `Azure-AsyncOperation` status document, with a non-terminal `provisioningState` of `Creating` until it completes; the `armkeyvault` poller walks the status document then re-reads the resource | 🟢 Real |
-| Deleted-vault recovery (vault-level soft delete + purge) | — ; would compose with azure-keyvault-emulator's object-level soft delete | 🔴 Not implemented |
+| Deleted-vault recovery (vault-level soft delete + purge) | `DELETE` makes a vault **recoverable, not destroyed**: it keeps its name, appears under `deletedVaults` with a `scheduledPurgeDate`, and comes back through `createMode: recover`. A plain create over the held name is `VaultAlreadyExists`; `purge` destroys it asynchronously; the retention window (7-90 days, default 90) closes on the controllable clock. Soft delete and recovery are each one transaction, so a vault is never both live and deleted | 🟢 Real |
 
 ## Emulator-only (no ARM equivalent — these exist for testing)
 
@@ -81,7 +82,7 @@ plainly what it leaves alone.
 | `armkeyvault` (Azure Go SDK) | Vault create/get/list/delete, access-policy add and remove | 🟢 CI `test` |
 | `azidentity` (`ClientSecretCredential`, custom cloud) | The ARM-audience token path against an in-process real **entra-emulator** | 🟢 CI `test` |
 | **The authorization chain** (entra → ARM assignment → Key Vault data plane) | A role assignment written over ARM flips the vault from `403` to authorized, revocation flips it back, and an access policy grants it again — three real processes | 🟢 CI `arm-chain` (in azure-keyvault-emulator) |
-| **`az` CLI** via `az cloud register` | The family registered as a cloud: login, group/vault create, **custom role definition create/list/delete**, role assignment create+delete, set-policy — asserted against the Key Vault data plane | 🟢 CI `az-cli` (in azure-keyvault-emulator) |
+| **`az` CLI** via `az cloud register` | The family registered as a cloud: login, group/vault create, **custom role definition create/list/delete**, **vault delete/list-deleted/recover/purge**, role assignment create+delete, set-policy — asserted against the Key Vault data plane | 🟢 CI `az-cli` (in azure-keyvault-emulator) |
 | Python / JS / .NET management SDKs | Planned (P2) | 🔴 Not wired yet |
 
 Every 🟢 claim names its witness in [`witnesses.json`](witnesses.json),
@@ -104,6 +105,7 @@ what it did not set out to do, and why.
 | **Azure Policy, Activity Log, Resource Graph, locks** | Separate services layered on ARM |
 | **Behaviour differentiated by `api-version`** | Every version is accepted and validated, and all behave alike. Varying shapes by version means maintaining one per version, and the consumers here pin a single version |
 | **Private endpoints, network ACLs** | Network-path enforcement, which no localhost process can honour — a firewall an emulator pretends to apply is worse than none |
+| **Managed HSM** (`deletedManagedHSMs`, `managedhsm.azure.net`) | Not modelled by this family; `az keyvault list-deleted` therefore needs `--resource-type vault` |
 | **PIM / just-in-time elevation** | Requires an approval workflow and directory state no localhost process holds |
 
 ## Test coverage

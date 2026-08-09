@@ -251,6 +251,29 @@ def driver():
         sys.exit(f"FAIL: az keyvault create returned {vault}")
     print(f"   {vault['properties']['vaultUri']}")
 
+    print("-- 5b. az keyvault delete / list-deleted / recover / purge")
+    soft = VAULT + "soft"
+    az("keyvault", "create", "--name", soft, "--resource-group", RG,
+       "--location", "westeurope", "--subscription", SUB)
+    az("keyvault", "delete", "--name", soft, "--subscription", SUB)
+    # The vault is recoverable, not gone: the CLI can still see it.
+    deleted_vaults = az_json("keyvault", "list-deleted", "--resource-type", "vault", "--subscription", SUB) or []
+    if not any(d.get("name") == soft for d in deleted_vaults):
+        sys.exit(f"FAIL: {soft} is not listed among the deleted vaults: {deleted_vaults}")
+    print(f"   {soft} deleted and listed as recoverable")
+    az("keyvault", "recover", "--name", soft, "--resource-group", RG,
+       "--location", "westeurope", "--subscription", SUB)
+    if not az_json("keyvault", "show", "--name", soft, "--subscription", SUB):
+        sys.exit(f"FAIL: {soft} did not come back after recover")
+    print("   recovered")
+    # Delete it again and purge for good.
+    az("keyvault", "delete", "--name", soft, "--subscription", SUB)
+    az("keyvault", "purge", "--name", soft, "--location", "westeurope", "--subscription", SUB)
+    still = az_json("keyvault", "list-deleted", "--resource-type", "vault", "--subscription", SUB) or []
+    if any(d.get("name") == soft for d in still):
+        sys.exit(f"FAIL: {soft} survived the purge: {still}")
+    print("   purged")
+
     print("-- 6. az role assignment create, then list filtered by scope")
     assignment = az_json("role", "assignment", "create",
                          "--role", READER,

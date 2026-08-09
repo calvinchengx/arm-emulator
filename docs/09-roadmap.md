@@ -16,6 +16,10 @@ speculatively.
   `groups` claim (needed entra-emulator v0.3.1's delegated Azure-resource
   carve-out).
 - **P3** — the `az` CLI as the flagship witness, via `az cloud register`.
+- **P6** — **deleted-vault recovery**: `DELETE` makes a vault recoverable
+  rather than destroyed, with `deletedVaults`, `createMode: recover`, purge,
+  and a retention window on the controllable clock. Driving `az keyvault
+  delete` also turned up the subscription-wide resource list, now served.
 - **P5** — **custom role definitions**: real CRUD, with `assignableScopes`
   enforced on assignment and the definition's `dataActions` reaching the
   family feed. `az role definition create` writes them.

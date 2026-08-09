@@ -39,7 +39,10 @@ type vaultProperties struct {
 	SoftDeleteRetention     *int                `json:"softDeleteRetentionInDays,omitempty"`
 	EnableRbacAuthorization *bool               `json:"enableRbacAuthorization,omitempty"`
 	EnablePurgeProtection   *bool               `json:"enablePurgeProtection,omitempty"`
-	ProvisioningState       string              `json:"provisioningState,omitempty"`
+	// CreateMode "recover" brings a soft-deleted vault back rather than
+	// creating a new one.
+	CreateMode        string `json:"createMode,omitempty"`
+	ProvisioningState string `json:"provisioningState,omitempty"`
 }
 
 func vaultID(sub, rg, name string) string {
@@ -147,7 +150,9 @@ func (s *Service) vaults(w http.ResponseWriter, r *http.Request, scope string, r
 		}
 		writeJSON(w, http.StatusOK, s.vaultBody(v))
 	case http.MethodDelete:
-		err := s.Store.DeleteVault(sub, name)
+		// Key Vault does not destroy a vault here: it becomes recoverable
+		// and keeps its name until purged or its window lapses.
+		err := s.Store.SoftDeleteVault(sub, name, s.Cfg.VaultRetentionDays)
 		if errors.Is(err, store.ErrNotFound) {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -194,6 +199,31 @@ func (s *Service) putVault(w http.ResponseWriter, r *http.Request, sub, rg, name
 	// ARM answers 201 for a create and 200 for an update.
 	_, getErr := s.Store.GetVault(sub, name)
 	existed := getErr == nil
+	if !existed {
+		// A soft-deleted vault still holds its name. createMode "recover"
+		// brings it back; anything else is a name conflict, which is what
+		// makes an accidental delete recoverable rather than replaceable.
+		if _, err := s.Store.GetDeletedVault(sub, name); err == nil {
+			if strings.EqualFold(body.Properties.CreateMode, "recover") {
+				v, err := s.Store.RecoverVault(sub, name)
+				if err != nil {
+					writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
+					return
+				}
+				writeJSON(w, http.StatusOK, s.vaultBody(v))
+				return
+			}
+			writeErr(w, http.StatusConflict, "VaultAlreadyExists",
+				fmt.Sprintf("The vault name '%s' is in a soft-deleted state and still reserved. "+
+					"Recover it with properties.createMode 'recover', or purge it first.", name))
+			return
+		}
+		if strings.EqualFold(body.Properties.CreateMode, "recover") {
+			writeErr(w, http.StatusNotFound, "VaultNotFound",
+				fmt.Sprintf("There is no deleted vault named '%s' to recover.", name))
+			return
+		}
+	}
 	props := body.Properties
 	if props.AccessPolicies == nil {
 		props.AccessPolicies = []AccessPolicyEntry{}

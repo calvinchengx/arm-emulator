@@ -114,11 +114,9 @@ func (s *Store) DeleteRoleDefinition(guid string) error {
 	if err != nil {
 		return err
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n == 0 {
+	// RowsAffected cannot fail for this driver; the house convention is to
+	// read it directly, as the sibling repositories do.
+	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
 	}
 	return nil
