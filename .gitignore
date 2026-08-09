@@ -37,3 +37,9 @@ e2e/sdk/dotnet/obj/
 
 # Docs site (Astro Starlight): generated output and content.
 # website/.gitignore covers dist/, .astro/ and src/content/docs/.
+
+# .NET build output from the cross-language SDK harness (e2e/sdks/dotnet).
+# Anchored, because obj/ and bin/ are common enough names to catch something
+# else if left loose.
+/e2e/sdks/dotnet/bin/
+/e2e/sdks/dotnet/obj/

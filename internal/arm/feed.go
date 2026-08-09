@@ -15,6 +15,8 @@ package arm
 import (
 	"net/http"
 	"strings"
+
+	"github.com/calvinchengx/arm-emulator/internal/abac"
 )
 
 // EffectiveAssignment is one assignment applying at the requested scope.
@@ -27,6 +29,12 @@ type EffectiveAssignment struct {
 	DataActions      []string `json:"dataActions"`
 	NotDataActions   []string `json:"notDataActions"`
 	Condition        string   `json:"condition,omitempty"`
+	ConditionVersion string   `json:"conditionVersion,omitempty"`
+	// ConditionAttributes names what the condition reads, so a data plane
+	// knows which attributes it must supply to have the condition decide
+	// anything. A condition asking about an attribute nobody supplies is
+	// false, which is a silent denial unless the requirement is visible.
+	ConditionAttributes []string `json:"conditionAttributes,omitempty"`
 	// Denied carries the deny-assignment permissions that reach this
 	// principal at this scope. A deny beats the grant above it, so a data
 	// plane must check these first: an action matching a Denied entry's
@@ -60,7 +68,19 @@ func (s *Service) EffectiveAt(scope string) ([]EffectiveAssignment, error) {
 			PrincipalID: a.PrincipalID, PrincipalType: a.PrincipalType,
 			RoleName: def.RoleName, RoleDefinitionID: a.RoleDefinitionID,
 			Scope: a.ScopeDisplay, Condition: a.Condition,
-			DataActions: []string{}, NotDataActions: []string{},
+			ConditionVersion: a.ConditionVersion,
+			DataActions:      []string{}, NotDataActions: []string{},
+		}
+		// A condition that no longer parses grants nothing: it was validated
+		// when it was written, so reaching here means the stored text was
+		// tampered with, and honouring the assignment unconditionally would
+		// widen the grant its author narrowed.
+		if a.Condition != "" {
+			cond, err := abac.Parse(a.Condition)
+			if err != nil {
+				continue
+			}
+			e.ConditionAttributes = cond.Attributes()
 		}
 		for _, p := range def.Permissions {
 			e.DataActions = append(e.DataActions, p.DataActions...)
@@ -89,17 +109,18 @@ func (s *Service) ServeFeed(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "BadParameter", "the scope query parameter is required")
 		return
 	}
-	eff, err := s.EffectiveAt(scope)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
-		return
-	}
+
 	// Every deny reaching this scope, verbatim. `assignments[].denied`
 	// above covers the case where the deny names the assignment's own
 	// principal; this block is what a data plane consults when the caller
 	// reaches a deny through a GROUP it belongs to, since membership is
 	// resolved there and not here.
 	denies, err := s.DenyAssignmentsAt(scope)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
+		return
+	}
+	eff, err := s.EffectiveAt(scope)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
 		return

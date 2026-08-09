@@ -61,6 +61,35 @@ jobs:
       - run: az version
       - run: ./e2e/az-cli/run.py
 
+  sdks:
+    name: Python, JS and .NET SDKs drive arm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25'
+          cache: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+      # Three vendor stacks that share nothing with the Go SDKs already
+      # witnessing this repo: their own transports, token caches and
+      # deserializers. Two real defects came out of writing them — a 301 on a
+      # doubled slash that cost the JS SDKs their Authorization header, and a
+      # ten-year certificate that macOS refuses to trust at all.
+      - run: ./e2e/sdks/run.py
+
   witnesses:
     name: Every green parity claim names its witness
     runs-on: ubuntu-latest

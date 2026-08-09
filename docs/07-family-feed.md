@@ -37,6 +37,9 @@ and the roles' `dataActions` verbatim, and stops.
       "scope": "/subscriptions/…/resourceGroups/rg1",
       "dataActions": ["Microsoft.KeyVault/vaults/secrets/getSecret/action", "…"],
       "notDataActions": [],
+      "condition": "((!(ActionMatches{'…getSecret/action'})) OR (@Resource[…:name] StringStartsWith 'app-'))",
+      "conditionVersion": "2.0",
+      "conditionAttributes": ["@Resource[Microsoft.KeyVault/vaults/secrets:name]"],
       "denied": [
         { "dataActions": ["Microsoft.KeyVault/vaults/secrets/*"], "notDataActions": [] }
       ]
@@ -64,6 +67,11 @@ and the roles' `dataActions` verbatim, and stops.
 - **assignments** — everything applying at the scope, inherited entries
   included. An assignment whose role definition no longer resolves is skipped:
   it grants nothing, so reporting it would be misleading.
+- **assignments[].condition** and **conditionAttributes** — the ABAC condition
+  narrowing this assignment, and the attributes it reads. A condition asking
+  about an attribute nobody supplies is false, so the requirement is listed
+  rather than left to be discovered as a silent denial. A consumer that would
+  rather not implement the language can ask for the decision instead (below).
 - **assignments[].denied** — the deny-assignment permissions reaching this
   assignment's own principal. A deny **beats** the grant beside it, so the
   consumer must check these first: an action matching a `denied` entry's
@@ -78,6 +86,33 @@ and the roles' `dataActions` verbatim, and stops.
   names a vault, so the consumer can honour Key Vault's either/or.
 - Unauthenticated, like the `/_emulator` control surfaces: it is a localhost
   coordination channel, not a customer-facing API.
+
+## Asking for the decision instead
+
+```
+POST /_family/authorization/evaluate
+```
+
+The feed is propagation: it hands over the raw material and leaves the
+matching to the consumer. That works for actions and dataActions, which are
+string matching. It does not work for **ABAC conditions**, which are a
+language — evaluating them where they cannot be parsed means every data plane
+reimplementing it. So the decision is available in one call:
+
+```json
+{
+  "scope": "…/vaults/myvault",
+  "principalIds": ["{objectId}", "{groupObjectId}"],
+  "action": "Microsoft.KeyVault/vaults/secrets/getSecret/action",
+  "attributes": { "@Resource[Microsoft.KeyVault/vaults/secrets:name]": "app-db-password" }
+}
+```
+
+→ `{"allowed": …, "reason": "…", "grantedBy": {…}, "deniedBy": "…", "conditionFailed": ["…"]}`
+
+Deny assignments override, then a role must grant the action, then its
+condition must hold. `principalIds` carries the caller's object id **and its
+groups**, because membership is resolved where the token is read.
 
 ## The consumer's half
 

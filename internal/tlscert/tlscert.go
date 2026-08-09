@@ -67,10 +67,17 @@ func generate() (certPEM, keyPEM []byte, err error) {
 		return nil, nil, err
 	}
 	tpl := x509.Certificate{
-		SerialNumber:          serial,
-		Subject:               pkix.Name{CommonName: "arm-emulator"},
-		NotBefore:             time.Now().Add(-time.Hour),
-		NotAfter:              time.Now().AddDate(10, 0, 0),
+		SerialNumber: serial,
+		Subject:      pkix.Name{CommonName: "arm-emulator"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		// 397 days, not the ten years this used to be. Apple refuses to
+		// trust a TLS server certificate valid for more than 825 days, so a
+		// long-lived one cannot be verified by ANY client on macOS built on
+		// the platform trust stack — .NET included — even when the developer
+		// deliberately trusts the file. 397 is the CA/Browser Forum maximum
+		// for public TLS, and sibling entra-emulator is already inside the
+		// limit. Regenerating is a delete of tls/ in the data directory.
+		NotAfter:              time.Now().AddDate(0, 0, 397),
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,

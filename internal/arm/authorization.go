@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/calvinchengx/arm-emulator/internal/abac"
 	"github.com/calvinchengx/arm-emulator/internal/auth"
 	"github.com/calvinchengx/arm-emulator/internal/store"
 )
@@ -237,6 +238,29 @@ func (s *Service) createAssignment(w http.ResponseWriter, r *http.Request, scope
 	if !assignableAt(def, scope) {
 		writeErr(w, http.StatusBadRequest, "ScopeNotAssignable",
 			fmt.Sprintf("The role definition '%s' is not assignable at scope '%s'.", def.RoleName, scope))
+		return
+	}
+	// An ABAC condition is parsed before it is stored. Accepting one that
+	// cannot be evaluated would be the worst outcome available: the caller
+	// believes their assignment is constrained, and it is not.
+	if props.Condition != "" {
+		if props.ConditionVersion == "" {
+			props.ConditionVersion = abac.Version
+		}
+		if props.ConditionVersion != abac.Version {
+			writeErr(w, http.StatusBadRequest, "InvalidConditionVersion",
+				fmt.Sprintf("The condition version '%s' is invalid. The only supported version is '%s'.",
+					props.ConditionVersion, abac.Version))
+			return
+		}
+		if _, err := abac.Parse(props.Condition); err != nil {
+			writeErr(w, http.StatusBadRequest, "InvalidCondition",
+				fmt.Sprintf("The condition could not be parsed: %s", err.Error()))
+			return
+		}
+	} else if props.ConditionVersion != "" {
+		writeErr(w, http.StatusBadRequest, "InvalidCondition",
+			"A conditionVersion was supplied without a condition.")
 		return
 	}
 	a := &store.RoleAssignment{

@@ -7,11 +7,14 @@ package server_test
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -625,5 +628,189 @@ func TestArmDenyAssignmentsSDK(t *testing.T) {
 	}
 	if byPrincipal != 1 {
 		t.Fatalf("principalId filter returned %d", byPrincipal)
+	}
+}
+
+// TestArmConditionsSDK: Microsoft's own client writes an ABAC condition onto
+// a role assignment, reads it back, and is REFUSED when the condition cannot
+// be parsed — the refusal is what makes the feature real rather than a field
+// that accepts anything.
+func TestArmConditionsSDK(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	scope := "/subscriptions/" + subID
+	const name = "5a2f8c31-9e44-4c0b-b1d7-6e4a2f9c0b13"
+	const principal = "c3d4e5f6-1111-4222-8333-444444444444"
+	const condition = `((!(ActionMatches{'Microsoft.KeyVault/vaults/secrets/getSecret/action'})) ` +
+		`OR (@Resource[Microsoft.KeyVault/vaults/secrets:name] StringStartsWith 'app-'))`
+
+	assign, err := armauthorization.NewRoleAssignmentsClient(subID, f.cred, f.opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roleID := scope + "/providers/Microsoft.Authorization/roleDefinitions/" +
+		"4633458b-17de-408a-b874-0445c86b69e6"
+
+	created, err := assign.Create(ctx, scope, name, armauthorization.RoleAssignmentCreateParameters{
+		Properties: &armauthorization.RoleAssignmentProperties{
+			RoleDefinitionID: to.Ptr(roleID),
+			PrincipalID:      to.Ptr(principal),
+			PrincipalType:    to.Ptr(armauthorization.PrincipalTypeServicePrincipal),
+			Condition:        to.Ptr(condition),
+			ConditionVersion: to.Ptr("2.0"),
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("Create with a condition: %v", err)
+	}
+	if created.Properties.Condition == nil || *created.Properties.Condition != condition ||
+		created.Properties.ConditionVersion == nil || *created.Properties.ConditionVersion != "2.0" {
+		t.Fatalf("condition did not round-trip: %+v", created.Properties)
+	}
+	got, err := assign.Get(ctx, scope, name, nil)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Properties.Condition == nil || *got.Properties.Condition != condition {
+		t.Fatalf("condition absent on read: %+v", got.Properties)
+	}
+
+	// A condition that cannot be parsed is refused, so a client never walks
+	// away believing an assignment is constrained when it is not.
+	_, err = assign.Create(ctx, scope, "6b3f9d42-0f55-4d1c-c2e8-7f5b3a0d1c24",
+		armauthorization.RoleAssignmentCreateParameters{
+			Properties: &armauthorization.RoleAssignmentProperties{
+				RoleDefinitionID: to.Ptr(roleID),
+				PrincipalID:      to.Ptr(principal),
+				Condition:        to.Ptr("@Resource[x] Frobnicates 'y'"),
+				ConditionVersion: to.Ptr("2.0"),
+			},
+		}, nil)
+	if err == nil {
+		t.Fatal("a malformed condition was accepted")
+	}
+	if !strings.Contains(err.Error(), "InvalidCondition") {
+		t.Fatalf("refusal did not name the problem: %v", err)
+	}
+
+	// And the decision itself: the family channel evaluates the condition
+	// against the attributes of a request, which is what a data plane asks.
+	ask := func(secretName string) bool {
+		body := fmt.Sprintf(`{"scope":%q,"principalIds":[%q],
+			"action":"Microsoft.KeyVault/vaults/secrets/getSecret/action",
+			"attributes":{"@Resource[Microsoft.KeyVault/vaults/secrets:name]":%q}}`,
+			scope, principal, secretName)
+		resp, err := f.srv.Client().Post(f.srv.URL+"/_family/authorization/evaluate",
+			"application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var res struct {
+			Allowed         bool
+			Reason          string
+			ConditionFailed []string
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+			t.Fatal(err)
+		}
+		if !res.Allowed && len(res.ConditionFailed) == 0 && res.Reason == "" {
+			t.Fatalf("a refusal with no reason: %+v", res)
+		}
+		return res.Allowed
+	}
+	if !ask("app-db-password") {
+		t.Fatal("the condition should admit a secret it names")
+	}
+	if ask("prod-db-password") {
+		t.Fatal("the condition should exclude a secret it does not name")
+	}
+}
+
+// badCredential hands the pipeline a token that is not a token, so the
+// emulator's 401 path is exercised by Microsoft's own client stack rather
+// than by a hand-rolled request.
+type badCredential struct{}
+
+func (badCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{Token: "not-a-real-token", ExpiresOn: time.Now().Add(time.Hour)}, nil
+}
+
+// TestArmEnvelopeSDK: the parts of ARM's envelope that only a real client can
+// witness — that azcore recognizes the 401 challenge, and that it parses the
+// error envelope into a typed ResponseError with ARM's own code.
+func TestArmEnvelopeSDK(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	// 1. The 401 + WWW-Authenticate challenge.
+	badOpts := &arm.ClientOptions{ClientOptions: f.opts.ClientOptions}
+	rejected, err := armresources.NewResourceGroupsClient(subID, badCredential{}, badOpts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = rejected.Get(ctx, "rg1", nil)
+	if err == nil {
+		t.Fatal("a garbage token was accepted")
+	}
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		t.Fatalf("the SDK did not produce a ResponseError: %v", err)
+	}
+	switch {
+	case respErr.StatusCode != http.StatusUnauthorized:
+		t.Fatalf("status = %d", respErr.StatusCode)
+	case respErr.ErrorCode != "AuthenticationFailed":
+		t.Fatalf("the SDK read the error code as %q", respErr.ErrorCode)
+	case !strings.HasPrefix(respErr.RawResponse.Header.Get("WWW-Authenticate"), "Bearer "):
+		t.Fatalf("no bearer challenge: %q", respErr.RawResponse.Header.Get("WWW-Authenticate"))
+	}
+	// The challenge points at an authority, which is what makes it
+	// actionable rather than decorative.
+	if !strings.Contains(respErr.RawResponse.Header.Get("WWW-Authenticate"), "authorization_uri") {
+		t.Fatalf("challenge without an authority: %q", respErr.RawResponse.Header.Get("WWW-Authenticate"))
+	}
+
+	// 2. The error envelope, on an authenticated request for something
+	// absent: the SDK lifts `error.code` out of the body, and the
+	// correlation headers ARM stamps are present for a client to log.
+	good, err := armresources.NewResourceGroupsClient(subID, f.cred, f.opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = good.Get(ctx, "no-such-group", nil)
+	if !errors.As(err, &respErr) {
+		t.Fatalf("missing group did not produce a ResponseError: %v", err)
+	}
+	if respErr.StatusCode != http.StatusNotFound || respErr.ErrorCode != "ResourceGroupNotFound" {
+		t.Fatalf("envelope = %d %q", respErr.StatusCode, respErr.ErrorCode)
+	}
+	for _, h := range []string{"x-ms-request-id", "x-ms-correlation-request-id"} {
+		if respErr.RawResponse.Header.Get(h) == "" {
+			t.Fatalf("%s absent from an error response", h)
+		}
+	}
+
+	// 3. An assignment naming a role definition that does not exist is
+	// refused, rather than stored as a dangling reference that grants
+	// nothing while looking like it grants something.
+	assign, err := armauthorization.NewRoleAssignmentsClient(subID, f.cred, f.opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = assign.Create(ctx, "/subscriptions/"+subID, "8d1f4c07-2b3e-4a55-9c66-1d2e3f4a5b6c",
+		armauthorization.RoleAssignmentCreateParameters{
+			Properties: &armauthorization.RoleAssignmentProperties{
+				RoleDefinitionID: to.Ptr("/subscriptions/" + subID +
+					"/providers/Microsoft.Authorization/roleDefinitions/" +
+					"00000000-0000-0000-0000-00000000dead"),
+				PrincipalID: to.Ptr("b1c2d3e4-1111-4222-8333-444444444444"),
+			},
+		}, nil)
+	if !errors.As(err, &respErr) {
+		t.Fatalf("a dangling role definition was accepted: %v", err)
+	}
+	if respErr.ErrorCode != "RoleDefinitionDoesNotExist" {
+		t.Fatalf("refusal code = %q", respErr.ErrorCode)
 	}
 }

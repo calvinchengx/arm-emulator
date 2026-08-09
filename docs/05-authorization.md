@@ -79,6 +79,66 @@ without ever being named. entra-emulator emits the claim when the app's
 `groupMembershipClaims` asks for it; its seeded *Engineering* group has Alice
 and Bob in it, which is what the family's CI exercises.
 
+## ABAC conditions
+
+A `condition` narrows a role assignment: the role says what may be done, the
+condition says under which attributes. It is written in Azure's version 2.0
+language, and here it is **parsed and evaluated** rather than stored and
+handed back.
+
+```
+((!(ActionMatches{'Microsoft.KeyVault/vaults/secrets/getSecret/action'}))
+ OR
+ (@Resource[Microsoft.KeyVault/vaults/secrets:name] StringStartsWith 'app-'))
+```
+
+That is the shape Azure's own documentation uses, and the guard is the reason
+why: an attribute nobody supplied makes its comparison **false**, negative
+operators included, so without `!(ActionMatches{…}) OR …` the condition would
+refuse every unrelated operation too.
+
+Supported: `ActionMatches` / `SubOperationMatches`; `@Resource`, `@Request`,
+`@Principal` and `@Environment` attributes; the string operators
+(`StringEquals`, `…IgnoreCase`, `StringStartsWith`, `StringLike` and their
+negations), numeric, datetime, bool and GUID comparisons; `Exists`; the four
+quantifiers (`ForAnyOfAnyValues:`, `ForAllOfAnyValues:`, `ForAnyOfAllValues:`,
+`ForAllOfAllValues:`) over `{'a','b'}` value sets; and `AND` / `OR` / `!()`
+with parentheses. A multi-valued attribute compared without a quantifier is
+false: the author has not said whether they meant any or all, and guessing
+would invent an answer.
+
+**Malformed conditions are refused at write time.** `InvalidCondition`, with
+the position of the offending text, and `InvalidConditionVersion` for anything
+but `2.0`. Storing one that cannot be evaluated would be the worst outcome
+available: the caller believes their assignment is constrained, and it is not.
+
+### Asking for a decision
+
+Conditions can only be evaluated where they can be parsed, so the family
+channel answers the question directly rather than making each data plane
+reimplement the language:
+
+```
+POST /_family/authorization/evaluate
+{
+  "scope": "/subscriptions/{sub}/resourceGroups/rg/providers/Microsoft.KeyVault/vaults/v",
+  "principalIds": ["{objectId}", "{groupObjectId}"],
+  "action": "Microsoft.KeyVault/vaults/secrets/getSecret/action",
+  "attributes": { "@Resource[Microsoft.KeyVault/vaults/secrets:name]": "app-db-password" }
+}
+```
+
+```json
+{ "allowed": true, "reason": "granted by Key Vault Secrets User at /subscriptions/…" }
+```
+
+It applies ARM's order: a **deny assignment** overrides everything, then a
+role assignment must grant the action, then its condition must be satisfied.
+A refusal says which of those it was — `conditionFailed` names the assignments
+that would have granted the action but for their condition, which is the
+difference between "you have no role" and "your role did not apply to this
+resource", and the thing hardest to work out without being told.
+
 ## Deny assignments
 
 The one part of the model that takes access away. They behave differently

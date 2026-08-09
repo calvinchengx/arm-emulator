@@ -1,0 +1,19 @@
+{
+  "name": "arm-emulator-js-sdk-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Microsoft's JavaScript management SDKs driving arm-emulator",
+  "scripts": {
+    "preinstall": "npx only-allow pnpm",
+    "start": "node main.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@azure/arm-authorization": "9.0.0",
+    "@azure/arm-resources": "8.0.0",
+    "@azure/identity": "4.13.1"
+  }
+}
