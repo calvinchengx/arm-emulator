@@ -297,3 +297,70 @@ func TestVaultClosedDBErrors(t *testing.T) {
 		t.Fatal("migrateVaults on a closed DB succeeded")
 	}
 }
+
+func TestRoleDefinitionCRUDAndClosedDB(t *testing.T) {
+	s, err := Open("", clock.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := &CustomRoleDefinition{
+		GUID: "aaaa1111-2222-4333-8444-555555555555", RoleName: "Custom One",
+		PermissionsJSON: `[{"actions":["*/read"]}]`, ScopesJSON: `["/"]`,
+	}
+	if err := s.PutRoleDefinition(d); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetRoleDefinition(d.GUID)
+	if err != nil || got.RoleName != "Custom One" || got.CreatedAt == 0 {
+		t.Fatalf("get = %+v, %v", got, err)
+	}
+	// An update keeps the original createdAt and moves updatedAt.
+	s.Clock.Advance(60)
+	d.Description = "changed"
+	if err := s.PutRoleDefinition(d); err != nil {
+		t.Fatal(err)
+	}
+	again, _ := s.GetRoleDefinition(d.GUID)
+	if again.CreatedAt != got.CreatedAt || again.UpdatedAt <= got.UpdatedAt {
+		t.Fatalf("timestamps after update: created %d->%d updated %d->%d",
+			got.CreatedAt, again.CreatedAt, got.UpdatedAt, again.UpdatedAt)
+	}
+	// A second definition may not take the same display name.
+	dup := &CustomRoleDefinition{GUID: "bbbb1111-2222-4333-8444-555555555555",
+		RoleName: "Custom One", PermissionsJSON: "[]", ScopesJSON: "[]"}
+	if err := s.PutRoleDefinition(dup); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate name = %v", err)
+	}
+	if list, err := s.ListRoleDefinitions(); err != nil || len(list) != 1 {
+		t.Fatalf("list = %d, %v", len(list), err)
+	}
+	if n, err := s.AssignmentsForRole(d.GUID); err != nil || n != 0 {
+		t.Fatalf("assignments = %d, %v", n, err)
+	}
+	if err := s.DeleteRoleDefinition(d.GUID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteRoleDefinition(d.GUID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("delete of an absent definition = %v", err)
+	}
+	if _, err := s.GetRoleDefinition("nope"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("get of an absent definition = %v", err)
+	}
+
+	s.Close()
+	if err := s.PutRoleDefinition(d); err == nil {
+		t.Error("PutRoleDefinition on a closed database succeeded")
+	}
+	if _, err := s.GetRoleDefinition(d.GUID); err == nil {
+		t.Error("GetRoleDefinition on a closed database succeeded")
+	}
+	if _, err := s.ListRoleDefinitions(); err == nil {
+		t.Error("ListRoleDefinitions on a closed database succeeded")
+	}
+	if err := s.DeleteRoleDefinition(d.GUID); err == nil {
+		t.Error("DeleteRoleDefinition on a closed database succeeded")
+	}
+	if _, err := s.AssignmentsForRole(d.GUID); err == nil {
+		t.Error("AssignmentsForRole on a closed database succeeded")
+	}
+}

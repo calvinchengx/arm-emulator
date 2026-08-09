@@ -33,17 +33,26 @@ func (s *Service) roleDefBody(scope string, r RoleDefinition) map[string]any {
 			"dataActions": orEmpty(p.DataActions), "notDataActions": orEmpty(p.NotDataActions),
 		})
 	}
+	kind, scopes := "BuiltInRole", []string{"/"}
+	if r.Custom {
+		kind, scopes = "CustomRole", orEmpty(r.AssignableScopes)
+	}
+	props := map[string]any{
+		"roleName":         r.RoleName,
+		"description":      r.Description,
+		"type":             kind,
+		"permissions":      perms,
+		"assignableScopes": scopes,
+	}
+	if r.Custom {
+		props["createdOn"] = rfc3339(r.CreatedAt)
+		props["updatedOn"] = rfc3339(r.UpdatedAt)
+	}
 	return map[string]any{
-		"id":   s.roleDefinitionID(scope, r.GUID),
-		"type": "Microsoft.Authorization/roleDefinitions",
-		"name": r.GUID,
-		"properties": map[string]any{
-			"roleName":         r.RoleName,
-			"description":      r.Description,
-			"type":             "BuiltInRole",
-			"permissions":      perms,
-			"assignableScopes": []string{"/"},
-		},
+		"id":         s.roleDefinitionID(scope, r.GUID),
+		"type":       "Microsoft.Authorization/roleDefinitions",
+		"name":       r.GUID,
+		"properties": props,
 	}
 }
 
@@ -57,12 +66,20 @@ func orEmpty(v []string) []string {
 // roleDefinitions serves list and get. Real ARM supports an OData $filter on
 // roleName; the CLI uses it, so it is honoured here.
 func (s *Service) roleDefinitions(w http.ResponseWriter, r *http.Request, scope string, rest []string) {
-	if r.Method != http.MethodGet {
+	named := len(rest) >= 1 && rest[0] != ""
+	switch {
+	case r.Method == http.MethodPut && named:
+		s.putRoleDefinition(w, r, scope, rest[0])
+		return
+	case r.Method == http.MethodDelete && named:
+		s.deleteRoleDefinition(w, r, scope, rest[0])
+		return
+	case r.Method != http.MethodGet:
 		methodNotAllowed(w, r.Method)
 		return
 	}
-	if len(rest) >= 1 && rest[0] != "" {
-		def, ok := RoleByGUID(rest[0])
+	if named {
+		def, ok := s.resolveRole(rest[0])
 		if !ok {
 			writeErr(w, http.StatusNotFound, "RoleDefinitionDoesNotExist",
 				fmt.Sprintf("The role definition '%s' does not exist.", rest[0]))
@@ -72,8 +89,22 @@ func (s *Service) roleDefinitions(w http.ResponseWriter, r *http.Request, scope 
 		return
 	}
 	wantName := filterRoleName(r.URL.Query().Get("$filter"))
+	defs := BuiltInRoles()
+	customs, err := s.Store.ListRoleDefinitions()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
+		return
+	}
+	for _, d := range customs {
+		def, err := customToDefinition(d)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
+			return
+		}
+		defs = append(defs, def)
+	}
 	items := []map[string]any{}
-	for _, def := range BuiltInRoles() {
+	for _, def := range defs {
 		if wantName != "" && !strings.EqualFold(def.RoleName, wantName) {
 			continue
 		}
@@ -195,9 +226,17 @@ func (s *Service) createAssignment(w http.ResponseWriter, r *http.Request, scope
 	}
 	// The role must exist: real ARM refuses an assignment to an unknown
 	// definition rather than storing a dangling reference.
-	if _, ok := RoleFromDefinitionID(props.RoleDefinitionID); !ok {
+	def, ok := s.resolveRoleFromID(props.RoleDefinitionID)
+	if !ok {
 		writeErr(w, http.StatusBadRequest, "RoleDefinitionDoesNotExist",
 			fmt.Sprintf("The role definition '%s' does not exist.", props.RoleDefinitionID))
+		return
+	}
+	// A custom role is assignable only at or below the scopes it declares —
+	// the constraint assignableScopes exists to express.
+	if !assignableAt(def, scope) {
+		writeErr(w, http.StatusBadRequest, "ScopeNotAssignable",
+			fmt.Sprintf("The role definition '%s' is not assignable at scope '%s'.", def.RoleName, scope))
 		return
 	}
 	a := &store.RoleAssignment{

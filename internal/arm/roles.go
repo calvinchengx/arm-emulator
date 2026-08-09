@@ -19,11 +19,17 @@ type Permission struct {
 }
 
 // RoleDefinition is the Microsoft.Authorization/roleDefinitions resource.
+// Built-ins are the seeded set below; Custom marks one a caller wrote, which
+// is assignable only at or below its AssignableScopes.
 type RoleDefinition struct {
-	GUID        string
-	RoleName    string
-	Description string
-	Permissions []Permission
+	GUID             string
+	RoleName         string
+	Description      string
+	Permissions      []Permission
+	Custom           bool
+	AssignableScopes []string
+	CreatedAt        int64
+	UpdatedAt        int64
 }
 
 const (

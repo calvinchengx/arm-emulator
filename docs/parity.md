@@ -50,7 +50,7 @@ plainly what it leaves alone.
 | **Scope inheritance** on read (an assignment applies to every scope beneath it) | Real, on segment boundaries and case-insensitively | 🟢 Real |
 | `$filter=atScope()` and `principalId eq '…'` | Honoured, as the CLI sends them | 🟢 Real |
 | Assignments to a **group** principal (`principalType: Group`) | Stored and served like any other; a member's token carries the group in its `groups` claim (entra-emulator ≥ v0.3.1) and the data plane resolves membership — a user never named in the assignment is authorized through it | 🟢 Real |
-| Custom role definitions (create/update) | Built-ins only | 🔴 Not implemented |
+| Custom role definitions (create/update/delete) | Real CRUD at `PUT`/`DELETE .../roleDefinitions/{guid}`, listed and `$filter`ed beside the built-ins. **`assignableScopes` is enforced**, not just stored — an assignment outside them is refused; built-ins cannot be overwritten or deleted, display names are unique, and a definition still carrying assignments cannot be removed. Its `dataActions` flow through the family feed, so a role a caller invented genuinely grants data-plane access | 🟢 Real |
 | Deny assignments | — (PIM eligibility is declared out of scope below) | 🔴 Not implemented |
 | ABAC `condition` evaluation | Stored and returned verbatim; **not evaluated** | 🟡 Emulated |
 
@@ -81,7 +81,7 @@ plainly what it leaves alone.
 | `armkeyvault` (Azure Go SDK) | Vault create/get/list/delete, access-policy add and remove | 🟢 CI `test` |
 | `azidentity` (`ClientSecretCredential`, custom cloud) | The ARM-audience token path against an in-process real **entra-emulator** | 🟢 CI `test` |
 | **The authorization chain** (entra → ARM assignment → Key Vault data plane) | A role assignment written over ARM flips the vault from `403` to authorized, revocation flips it back, and an access policy grants it again — three real processes | 🟢 CI `arm-chain` (in azure-keyvault-emulator) |
-| **`az` CLI** via `az cloud register` | The family registered as a cloud: login, group/vault create, role assignment create+delete, set-policy — asserted against the Key Vault data plane | 🟢 CI `az-cli` (in azure-keyvault-emulator) |
+| **`az` CLI** via `az cloud register` | The family registered as a cloud: login, group/vault create, **custom role definition create/list/delete**, role assignment create+delete, set-policy — asserted against the Key Vault data plane | 🟢 CI `az-cli` (in azure-keyvault-emulator) |
 | Python / JS / .NET management SDKs | Planned (P2) | 🔴 Not wired yet |
 
 Every 🟢 claim names its witness in [`witnesses.json`](witnesses.json),
