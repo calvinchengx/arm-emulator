@@ -30,16 +30,14 @@ plainly what it leaves alone.
 | `api-version` required and validated (date-based, `-preview`) | Missing → `MissingApiVersionParameter`; malformed → `InvalidApiVersionParameter` | 🟢 Real |
 | ARM error envelope + `x-ms-request-id` / `x-ms-correlation-request-id` | On every response | 🟢 Real |
 | Cloud discovery (`GET /metadata/endpoints`, anonymous) | The real document, served without a token as ARM does — it is what `az cloud register` and SDK cloud-discovery fetch first, and it points them at entra-emulator | 🟢 Real |
-| Behaviour differentiated **by** api-version | Any valid version behaves identically | 🔴 Not implemented |
 
 ## Microsoft.Resources
 
 | ARM feature | Emulator | Type |
 |---|---|---|
-| Tenants + subscriptions discovery (`/tenants`, `/subscriptions`) | Served as real ARM does; one seeded subscription, unknown ids `SubscriptionNotFound` | 🟡 Emulated |
+| Tenants + subscriptions discovery (`/tenants`, `/subscriptions`) | Served as real ARM serves it, unknown ids `SubscriptionNotFound`. The tenant holds one subscription — a declared boundary below, not a simplification of the surface | 🟢 Real |
 | Resource groups CRUD + tags (case-insensitive names, PUT-as-upsert) | Real semantics, persisted | 🟢 Real |
 | Asynchronous group delete (`202` + `Location` polling) | `202` naming a `Location` to poll, `Retry-After`, `202` while it runs and `200` when done — an `armresources` poller genuinely spins, observing `InProgress` before `Succeeded`; `204` when there was nothing to delete | 🟢 Real |
-| Tracked resources of arbitrary providers, `Microsoft.Resources/deployments` | — | 🔴 Not implemented |
 
 ## Microsoft.Authorization
 
@@ -53,7 +51,7 @@ plainly what it leaves alone.
 | `$filter=atScope()` and `principalId eq '…'` | Honoured, as the CLI sends them | 🟢 Real |
 | Assignments to a **group** principal (`principalType: Group`) | Stored and served like any other; a member's token carries the group in its `groups` claim (entra-emulator ≥ v0.3.1) and the data plane resolves membership — a user never named in the assignment is authorized through it | 🟢 Real |
 | Custom role definitions (create/update) | Built-ins only | 🔴 Not implemented |
-| Deny assignments, PIM eligibility | — | 🔴 Not implemented |
+| Deny assignments | — (PIM eligibility is declared out of scope below) | 🔴 Not implemented |
 | ABAC `condition` evaluation | Stored and returned verbatim; **not evaluated** | 🟡 Emulated |
 
 ## Microsoft.KeyVault
@@ -64,13 +62,7 @@ plainly what it leaves alone.
 | `accessPolicies` + the `add`/`replace`/`remove` operation | Real: `add` merges by objectId, `replace` swaps the list, `remove` drops by objectId — what `az keyvault set-policy` / `delete-policy` call | 🟢 Real |
 | `enableRbacAuthorization`, `enablePurgeProtection`, soft-delete settings | Stored, returned, and **fed to the data plane** — RBAC mode makes the vault ignore access policies, as real Key Vault does | 🟢 Real |
 | Asynchronous vault create (`202` + polling) | `201`/`200` naming an `Azure-AsyncOperation` status document, with a non-terminal `provisioningState` of `Creating` until it completes; the `armkeyvault` poller walks the status document then re-reads the resource | 🟢 Real |
-| Private endpoints, network ACLs, deleted-vault recovery | — | 🔴 Not implemented |
-
-## The family feed
-
-| Feature | Emulator | Type |
-|---|---|---|
-| `GET /_family/authorization?scope=…` — effective assignments + their dataActions | The **only non-ARM surface here**, deliberately: Azure's internal ARM→data-plane propagation is not public wire, so its shape is ours. Thin by design — it reports assignments and role dataActions verbatim, leaving each data plane to map them onto its own operations | 🟡 Emulated (by necessity) |
+| Deleted-vault recovery (vault-level soft delete + purge) | — ; would compose with azure-keyvault-emulator's object-level soft delete | 🔴 Not implemented |
 
 ## Emulator-only (no ARM equivalent — these exist for testing)
 
@@ -78,6 +70,7 @@ plainly what it leaves alone.
 |---|---|
 | Clock control (`/_emulator/clock`) | Freeze/advance/offset — makes token expiry deterministic |
 | Fault injection (`/_emulator/faults`) | Force `429` + `Retry-After` or `500`, to exercise SDK retry paths |
+| The family feed (`GET /_family/authorization?scope=…`) | Effective assignments plus their dataActions, for the sibling data planes. Azure's internal ARM→data-plane propagation is not public wire, so there is no ARM behaviour to grade this against — it is ours by necessity, and deliberately thin: assignments and role dataActions verbatim, each data plane mapping them onto its own operations |
 
 ## Ecosystem conformance: real clients as witnesses
 
@@ -97,12 +90,20 @@ as the sibling emulators.
 
 ## Scope boundary: the authorization slice, not all of ARM
 
+Everything below is **out of scope on purpose**, and therefore not graded
+above: a row appears in exactly one of the two places, never both. Declaring
+a boundary is not the same as scoring a gap — the tables above measure how
+faithfully the emulator does what it set out to do, and this section says
+what it did not set out to do, and why.
+
 | Azure feature | Why out of scope |
 |---|---|
 | **Arbitrary resource providers** (compute, network, storage, …) | This emulator serves the family's data planes; providers arrive when a sibling needs one |
 | **Template/Bicep deployments** (`Microsoft.Resources/deployments`) | A large engine of its own; a later phase if the family needs it |
 | **Management groups, multiple subscriptions, cross-tenant** | Directory topology, not authorization behaviour |
 | **Azure Policy, Activity Log, Resource Graph, locks** | Separate services layered on ARM |
+| **Behaviour differentiated by `api-version`** | Every version is accepted and validated, and all behave alike. Varying shapes by version means maintaining one per version, and the consumers here pin a single version |
+| **Private endpoints, network ACLs** | Network-path enforcement, which no localhost process can honour — a firewall an emulator pretends to apply is worse than none |
 | **PIM / just-in-time elevation** | Requires an approval workflow and directory state no localhost process holds |
 
 ## Test coverage

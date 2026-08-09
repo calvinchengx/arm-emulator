@@ -160,5 +160,14 @@
       "go:TestOperationPollingBranches",
       "ci:az-cli"
     ]
+  },
+  "tenants-subscriptions-discovery-tenants-subscriptions": {
+    "section": "Microsoft.Resources",
+    "claim": "tenants-subscriptions-discovery-tenants-subscriptions",
+    "witnesses": [
+      "go:TestEnvelope",
+      "go:TestResourceGroupUnknownSubscription",
+      "ci:az-cli"
+    ]
   }
 }
