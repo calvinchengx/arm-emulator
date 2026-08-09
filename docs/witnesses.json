@@ -206,7 +206,7 @@
     "section": "Microsoft.Authorization",
     "claim": "deny-assignments",
     "witnesses": [
-      "sdk:armauthorization DenyAssignmentsClient",
+      "sdk:TestArmDenyAssignmentsSDK",
       "ci:az-cli",
       "go:TestDenyAssignmentReadSurface",
       "go:TestDenyAssignmentsAreReadOnly",
