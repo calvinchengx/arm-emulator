@@ -147,19 +147,32 @@ func TestSubcommands(t *testing.T) {
 		t.Fatalf("version: %v", err)
 	}
 	// healthcheck against a live TLS instance succeeds; against a dead port fails.
+	// The instance gets a data dir, as the container image does, so its
+	// self-signed certificate lands on disk and the probe can PIN it — the
+	// probe verifies TLS rather than skipping verification.
 	port := freePort(t)
+	dataDir := t.TempDir()
 	go func() {
 		_ = run([]string{"-entra-issuer", "https://127.0.0.1:1/t/v2.0",
-			"-addr", fmt.Sprintf("127.0.0.1:%d", port)})
+			"-addr", fmt.Sprintf("127.0.0.1:%d", port), "-data-dir", dataDir})
 	}()
 	client := &http.Client{Transport: &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}}
 	poll(t, client, fmt.Sprintf("https://127.0.0.1:%d/health", port))
 	t.Setenv("ARM_ADDR", fmt.Sprintf("127.0.0.1:%d", port))
+	t.Setenv("ARM_DATA_DIR", dataDir)
 	if err := run([]string{"healthcheck"}); err != nil {
 		t.Fatalf("healthcheck: %v", err)
 	}
+	// Without the certificate there is nothing to trust, and the probe says
+	// so instead of accepting whatever answered.
+	t.Setenv("ARM_DATA_DIR", t.TempDir())
+	err := run([]string{"healthcheck"})
+	if err == nil || !strings.Contains(err.Error(), "cannot verify") {
+		t.Fatalf("healthcheck with no certificate to pin = %v", err)
+	}
+	t.Setenv("ARM_DATA_DIR", dataDir)
 	t.Setenv("ARM_ADDR", fmt.Sprintf("127.0.0.1:%d", freePort(t)))
 	if err := run([]string{"healthcheck"}); err == nil {
 		t.Fatal("healthcheck against dead port succeeded")
@@ -219,7 +232,7 @@ func TestHealthcheckStatuses(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ok.Close()
-	if err := healthcheck(strings.TrimPrefix(ok.URL, "http://")); err != nil {
+	if err := healthcheck(strings.TrimPrefix(ok.URL, "http://"), ""); err != nil {
 		t.Fatalf("healthcheck against a plain-HTTP server: %v", err)
 	}
 
@@ -228,20 +241,20 @@ func TestHealthcheckStatuses(t *testing.T) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer sick.Close()
-	if err := healthcheck(strings.TrimPrefix(sick.URL, "http://")); err == nil {
+	if err := healthcheck(strings.TrimPrefix(sick.URL, "http://"), ""); err == nil {
 		t.Fatal("healthcheck accepted a 503")
 	}
 
 	// Nothing listening: both schemes fail.
-	if err := healthcheck(fmt.Sprintf("127.0.0.1:%d", freePort(t))); err == nil {
+	if err := healthcheck(fmt.Sprintf("127.0.0.1:%d", freePort(t)), ""); err == nil {
 		t.Fatal("healthcheck against a dead port succeeded")
 	}
 	// A malformed address fails at parsing.
-	if err := healthcheck("not-an-address"); err == nil {
+	if err := healthcheck("not-an-address", ""); err == nil {
 		t.Fatal("healthcheck accepted a malformed address")
 	}
 	// A host-less address (the container form, ":8445") probes loopback.
-	if err := healthcheck(fmt.Sprintf(":%d", freePort(t))); err == nil {
+	if err := healthcheck(fmt.Sprintf(":%d", freePort(t)), ""); err == nil {
 		t.Fatal("healthcheck against a dead loopback port succeeded")
 	}
 }

@@ -6,6 +6,7 @@ package main
 
 import (
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -36,7 +37,7 @@ func run(args []string) error {
 			fmt.Println("arm-emulator", version)
 			return nil
 		case "healthcheck":
-			return healthcheck(cfg.Addr)
+			return healthcheck(cfg.Addr, cfg.DataDir)
 		}
 	}
 	fs := flag.NewFlagSet("arm-emulator", flag.ContinueOnError)
@@ -87,7 +88,16 @@ func run(args []string) error {
 
 // healthcheck probes /health locally and exits 0 when healthy — distroless
 // images have no shell, so container HEALTHCHECKs exec this binary.
-func healthcheck(addr string) error {
+//
+// The probe VERIFIES TLS. The emulator's certificate is self-signed, which
+// makes it its own certificate authority, so pinning it as the only trusted
+// root authenticates this connection against exactly one server — rather
+// than disabling verification, which would accept any certificate at all.
+// The container image sets ARM_DATA_DIR, so the certificate is on disk where
+// this probe can read it. With TLS switched off the plain probe answers; with
+// TLS on and no certificate to pin, the error says exactly that rather than
+// quietly trusting whatever answered.
+func healthcheck(addr, dataDir string) error {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return err
@@ -95,12 +105,20 @@ func healthcheck(addr string) error {
 	if host == "" {
 		host = "127.0.0.1"
 	}
-	client := &http.Client{
-		Timeout:   3 * time.Second,
-		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
+	client := &http.Client{Timeout: 3 * time.Second}
+	if pool, err := tlscert.Pool(dataDir); err == nil {
+		client.Transport = &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}}
 	}
 	resp, err := client.Get("https://" + net.JoinHostPort(host, port) + "/health")
 	if err != nil {
+		// A certificate failure is its own diagnosis: the server is there
+		// and speaking TLS, we just have no certificate to trust it by.
+		var certErr *tls.CertificateVerificationError
+		if errors.As(err, &certErr) {
+			return fmt.Errorf("cannot verify this instance's certificate (%w) — run the healthcheck with "+
+				"the same ARM_DATA_DIR as the server, so its self-signed certificate can be pinned", err)
+		}
+		// Not a certificate problem: TLS is probably off, so probe plainly.
 		if resp, err = client.Get("http://" + net.JoinHostPort(host, port) + "/health"); err != nil {
 			return err
 		}
