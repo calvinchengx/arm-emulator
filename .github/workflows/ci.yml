@@ -42,6 +42,25 @@ jobs:
           echo "total coverage: ${total}%"
           awk -v t="$total" 'BEGIN { exit (t < 98) ? 1 : 0 }'
 
+  # The only witness in this repo that is a PACKAGED external client over a
+  # network rather than a library linked into a Go test. `az` is installed on
+  # the ubuntu runner already; entra comes from its pinned release, so this
+  # leg also proves the released pair works together.
+  az-cli:
+    name: The real az CLI drives arm as a registered cloud
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25'
+          cache: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: az version
+      - run: ./e2e/az-cli/run.py
+
   witnesses:
     name: Every green parity claim names its witness
     runs-on: ubuntu-latest

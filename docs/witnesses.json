@@ -5,7 +5,8 @@
     "witnesses": [
       "go:TestValidateHappyPathUserAndApp",
       "go:TestMultiIssuer",
-      "go:TestEnvelope"
+      "go:TestEnvelope",
+      "ci:az-cli"
     ]
   },
   "401-www-authenticate-challenge-with-authenticationfailed": {
@@ -43,7 +44,8 @@
     "claim": "resource-groups-crud-tags-case-insensitive-names-put-as-upsert",
     "witnesses": [
       "sdk:TestArmResourcesSDK",
-      "go:TestResourceGroupCRUD"
+      "go:TestResourceGroupCRUD",
+      "ci:az-cli"
     ]
   },
   "built-in-role-definitions-with-their-real-guids-and-documented-data-actions": {
@@ -51,7 +53,8 @@
     "claim": "built-in-role-definitions-with-their-real-guids-and-documented-data-actions",
     "witnesses": [
       "sdk:TestArmAuthorizationSDK",
-      "go:TestRoleLookup"
+      "go:TestRoleLookup",
+      "ci:az-cli"
     ]
   },
   "role-assignments-put-get-delete-at-any-scope": {
@@ -59,7 +62,8 @@
     "claim": "role-assignments-put-get-delete-at-any-scope",
     "witnesses": [
       "sdk:TestArmAuthorizationSDK",
-      "go:TestRoleAssignmentCRUD"
+      "go:TestRoleAssignmentCRUD",
+      "ci:az-cli"
     ]
   },
   "duplicate-scope-role-principal-roleassignmentexists": {
@@ -100,7 +104,8 @@
     "witnesses": [
       "sdk:TestArmKeyVaultSDK",
       "go:TestVaultLifecycleBranches",
-      "go:TestVaultCRUD"
+      "go:TestVaultCRUD",
+      "ci:az-cli"
     ]
   },
   "accesspolicies-the-add-replace-remove-operation": {
