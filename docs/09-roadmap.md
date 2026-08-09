@@ -16,6 +16,9 @@ speculatively.
   `groups` claim (needed entra-emulator v0.3.1's delegated Azure-resource
   carve-out).
 - **P3** — the `az` CLI as the flagship witness, via `az cloud register`.
+- **P5** — **custom role definitions**: real CRUD, with `assignableScopes`
+  enforced on assignment and the definition's `dataActions` reaching the
+  family feed. `az role definition create` writes them.
 - **P4** — ARM's **asynchronous-operation protocol**, both shapes: `Location`
   polling for a group delete and `Azure-AsyncOperation` polling for a vault
   create, completing on the controllable clock. Microsoft's own pollers
@@ -30,7 +33,6 @@ speculatively.
 - **Template deployments** (`Microsoft.Resources/deployments`) — the engine
   behind `az deployment group create` and Bicep. A large piece; worth it only
   when something in the family wants to stand a stack up from a template.
-- **Custom role definitions** — create/update, not just the built-ins.
 - **ABAC condition evaluation** — conditions are stored and returned verbatim
   today; evaluating them is a real feature, not a shape.
 

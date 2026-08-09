@@ -87,7 +87,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS role_assignments_triple
 	if err := s.migrateVaults(); err != nil {
 		return err
 	}
-	return s.migrateOperations()
+	if err := s.migrateOperations(); err != nil {
+		return err
+	}
+	return s.migrateRoleDefinitions()
 }
 
 // NewGUID returns a random RFC 4122 v4 UUID — the identifier shape ARM uses

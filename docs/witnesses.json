@@ -169,5 +169,16 @@
       "go:TestResourceGroupUnknownSubscription",
       "ci:az-cli"
     ]
+  },
+  "custom-role-definitions-create-update-delete": {
+    "section": "Microsoft.Authorization",
+    "claim": "custom-role-definitions-create-update-delete",
+    "witnesses": [
+      "ci:az-cli",
+      "go:TestCustomRoleLifecycle",
+      "go:TestCustomRoleRules",
+      "go:TestCustomRoleAssignableScopes",
+      "go:TestCustomRoleStorageFailures"
+    ]
   }
 }

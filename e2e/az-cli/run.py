@@ -210,6 +210,37 @@ def driver():
         sys.exit(f"FAIL: Reader missing from az role definition list ({len(roles or [])} roles)")
     print(f"   {len(roles)} definitions, Reader among them")
 
+    print("-- 4b. az role definition create — a CUSTOM role, written by the CLI")
+    custom_name = "Emulator Vault Secret Peeker"
+    definition = json.dumps({
+        "Name": custom_name,
+        "Description": "Read secret contents in this subscription.",
+        "Actions": ["Microsoft.KeyVault/vaults/read"],
+        "DataActions": ["Microsoft.KeyVault/vaults/secrets/getSecret/action"],
+        "AssignableScopes": [f"/subscriptions/{SUB}"],
+    })
+    made = az_json("role", "definition", "create", "--role-definition", definition)
+    if not made or made.get("roleName") != custom_name:
+        sys.exit(f"FAIL: az role definition create returned {made}")
+    custom_id = made.get("name") or made.get("id", "").rsplit("/", 1)[-1]
+    print(f"   custom role {custom_id} created, type={made.get('roleType') or made.get('type')}")
+
+    # The CLI finds it by name, alongside the built-ins.
+    found = az_json("role", "definition", "list", "--name", custom_name,
+                    "--scope", f"/subscriptions/{SUB}")
+    if not found or found[0].get("roleName") != custom_name:
+        sys.exit(f"FAIL: the custom role is not listed: {found}")
+    print("   listed by name")
+
+    # A custom role is assignable only where it says: the emulator refuses a
+    # scope outside assignableScopes, which is the point of the field.
+    az("role", "definition", "delete", "--name", custom_name)
+    gone = az_json("role", "definition", "list", "--name", custom_name,
+                   "--scope", f"/subscriptions/{SUB}")
+    if gone:
+        sys.exit(f"FAIL: the custom role survived deletion: {gone}")
+    print("   deleted")
+
     print("-- 5. az keyvault create — the ARM resource, not the data plane")
     scope = (f"/subscriptions/{SUB}/resourceGroups/{RG}"
              f"/providers/Microsoft.KeyVault/vaults/{VAULT}")

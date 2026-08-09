@@ -41,7 +41,7 @@ func (s *Service) EffectiveAt(scope string) ([]EffectiveAssignment, error) {
 		if !ScopeApplies(a.ScopeDisplay, scope) {
 			continue
 		}
-		def, ok := RoleFromDefinitionID(a.RoleDefinitionID)
+		def, ok := s.resolveRoleFromID(a.RoleDefinitionID)
 		if !ok {
 			continue // a dangling definition grants nothing
 		}
