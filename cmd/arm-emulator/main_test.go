@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/calvinchengx/arm-emulator/internal/tlscert"
 )
 
 func freePort(t *testing.T) int {
@@ -146,17 +148,18 @@ func TestSubcommands(t *testing.T) {
 	if err := run([]string{"version"}); err != nil {
 		t.Fatalf("version: %v", err)
 	}
-	// healthcheck against a live TLS instance succeeds; against a dead port fails.
+	// healthcheck against a live instance succeeds; against a dead port
+	// fails. This instance runs with TLS off and no data dir, so nothing
+	// holds a database file open — the pinned-TLS path is exercised on its
+	// own below, where the server is an httptest one that gets closed.
 	port := freePort(t)
 	go func() {
 		_ = run([]string{"-entra-issuer", "https://127.0.0.1:1/t/v2.0",
-			"-addr", fmt.Sprintf("127.0.0.1:%d", port)})
+			"-addr", fmt.Sprintf("127.0.0.1:%d", port), "-disable-tls"})
 	}()
-	client := &http.Client{Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}}
-	poll(t, client, fmt.Sprintf("https://127.0.0.1:%d/health", port))
+	poll(t, http.DefaultClient, fmt.Sprintf("http://127.0.0.1:%d/health", port))
 	t.Setenv("ARM_ADDR", fmt.Sprintf("127.0.0.1:%d", port))
+	t.Setenv("ARM_DISABLE_TLS", "true")
 	if err := run([]string{"healthcheck"}); err != nil {
 		t.Fatalf("healthcheck: %v", err)
 	}
@@ -219,7 +222,7 @@ func TestHealthcheckStatuses(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ok.Close()
-	if err := healthcheck(strings.TrimPrefix(ok.URL, "http://")); err != nil {
+	if err := healthcheck(strings.TrimPrefix(ok.URL, "http://"), ""); err != nil {
 		t.Fatalf("healthcheck against a plain-HTTP server: %v", err)
 	}
 
@@ -228,20 +231,20 @@ func TestHealthcheckStatuses(t *testing.T) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer sick.Close()
-	if err := healthcheck(strings.TrimPrefix(sick.URL, "http://")); err == nil {
+	if err := healthcheck(strings.TrimPrefix(sick.URL, "http://"), ""); err == nil {
 		t.Fatal("healthcheck accepted a 503")
 	}
 
 	// Nothing listening: both schemes fail.
-	if err := healthcheck(fmt.Sprintf("127.0.0.1:%d", freePort(t))); err == nil {
+	if err := healthcheck(fmt.Sprintf("127.0.0.1:%d", freePort(t)), ""); err == nil {
 		t.Fatal("healthcheck against a dead port succeeded")
 	}
 	// A malformed address fails at parsing.
-	if err := healthcheck("not-an-address"); err == nil {
+	if err := healthcheck("not-an-address", ""); err == nil {
 		t.Fatal("healthcheck accepted a malformed address")
 	}
 	// A host-less address (the container form, ":8445") probes loopback.
-	if err := healthcheck(fmt.Sprintf(":%d", freePort(t))); err == nil {
+	if err := healthcheck(fmt.Sprintf(":%d", freePort(t)), ""); err == nil {
 		t.Fatal("healthcheck against a dead loopback port succeeded")
 	}
 }
@@ -261,5 +264,36 @@ func TestRunServerNewFailure(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("run with an unusable database path succeeded")
+	}
+}
+
+// TestHealthcheckPinsCertificate is the CodeQL fix's own test: the probe
+// VERIFIES the emulator's TLS certificate by pinning it, so it succeeds
+// against the instance that owns that certificate and fails — legibly —
+// against one it cannot vouch for. The server here is an httptest one, which
+// closes with the test, so nothing keeps the certificate file open.
+func TestHealthcheckPinsCertificate(t *testing.T) {
+	dataDir := t.TempDir()
+	cert, err := tlscert.Load(dataDir) // generates and persists cert.pem
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	srv.TLS = &tls.Config{Certificates: []tls.Certificate{cert}}
+	srv.StartTLS()
+	defer srv.Close()
+	addr := strings.TrimPrefix(srv.URL, "https://")
+
+	// Pinned: verification succeeds against the certificate on disk.
+	if err := healthcheck(addr, dataDir); err != nil {
+		t.Fatalf("healthcheck with the certificate pinned: %v", err)
+	}
+	// Nothing to pin: the probe reports that it cannot verify, rather than
+	// trusting whatever answered.
+	err = healthcheck(addr, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "cannot verify") {
+		t.Fatalf("healthcheck with no certificate to pin = %v", err)
 	}
 }

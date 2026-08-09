@@ -11,6 +11,8 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
+	"fmt"
 	"math/big"
 	"net"
 	"os"
@@ -86,4 +88,27 @@ func generate() (certPEM, keyPEM []byte, err error) {
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
 	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 	return certPEM, keyPEM, nil
+}
+
+// Pool returns a CertPool holding the emulator's own persisted certificate.
+//
+// A self-signed certificate is its own certificate authority, so pinning it
+// lets a local probe VERIFY the connection rather than skip verification —
+// the same move the e2e harnesses make when they hand the `az` CLI a CA
+// bundle instead of turning checking off. It fails when there is nothing to
+// pin (an ephemeral instance keeps its key only in memory).
+func Pool(dataDir string) (*x509.CertPool, error) {
+	if dataDir == "" {
+		return nil, errors.New("no data directory: this instance's certificate is ephemeral and cannot be pinned")
+	}
+	path := filepath.Join(dataDir, "tls", "cert.pem")
+	pem, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pem) {
+		return nil, fmt.Errorf("no certificate found in %s", path)
+	}
+	return pool, nil
 }

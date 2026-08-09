@@ -105,3 +105,49 @@ func TestLoadWriteFailures(t *testing.T) {
 		t.Fatal("Load under a regular file succeeded")
 	}
 }
+
+// TestPool: pinning the emulator's own certificate is what lets a local
+// probe verify instead of skipping verification, so every way it can fail
+// has to be legible.
+func TestPool(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Load(dir); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := Pool(dir)
+	if err != nil {
+		t.Fatalf("Pool of a persisted certificate: %v", err)
+	}
+	// The pool must actually verify the certificate it was built from.
+	cert, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := leaf.Verify(x509.VerifyOptions{Roots: pool, DNSName: "localhost"}); err != nil {
+		t.Fatalf("the pinned certificate does not verify against its own pool: %v", err)
+	}
+
+	// An ephemeral instance has nothing on disk to pin.
+	if _, err := Pool(""); err == nil {
+		t.Fatal("Pool accepted an empty data directory")
+	}
+	// A data directory with no certificate yet.
+	if _, err := Pool(t.TempDir()); err == nil {
+		t.Fatal("Pool accepted a directory with no certificate")
+	}
+	// A file that exists but holds no certificate.
+	junk := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(junk, "tls"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(junk, "tls", "cert.pem"), []byte("not a certificate"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Pool(junk); err == nil {
+		t.Fatal("Pool accepted a file with no PEM certificate in it")
+	}
+}
