@@ -75,10 +75,10 @@ a strict checker in CI — same as azure-keyvault-emulator.
 
 ## Clean-room grounding (pinned)
 
-> `Azure/azure-rest-api-specs @ 0a6e8869` (2026-08-07) — sparse clone at
-> `~/calvinchengx/azure-rest-api-specs`:
-> `specification/{authorization,keyvault,resources}` — the OpenAPI ARM's own
-> SDKs are generated from.
+> [`Azure/azure-rest-api-specs`](https://github.com/Azure/azure-rest-api-specs)
+> `@ 0a6e8869` (2026-08-07) — a sparse clone of
+> `specification/{authorization,keyvault,resources}`, the OpenAPI ARM's own SDKs
+> are generated from. Paths below are relative to that clone.
 > [ARM REST reference](https://learn.microsoft.com/en-us/rest/api/resources/)
 > and [Azure RBAC docs](https://learn.microsoft.com/en-us/azure/role-based-access-control/).
 
