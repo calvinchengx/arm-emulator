@@ -222,7 +222,7 @@ func TestHealthcheckStatuses(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ok.Close()
-	if err := healthcheck(strings.TrimPrefix(ok.URL, "http://"), ""); err != nil {
+	if err := healthcheck(strings.TrimPrefix(ok.URL, "http://")); err != nil {
 		t.Fatalf("healthcheck against a plain-HTTP server: %v", err)
 	}
 
@@ -231,20 +231,20 @@ func TestHealthcheckStatuses(t *testing.T) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer sick.Close()
-	if err := healthcheck(strings.TrimPrefix(sick.URL, "http://"), ""); err == nil {
+	if err := healthcheck(strings.TrimPrefix(sick.URL, "http://")); err == nil {
 		t.Fatal("healthcheck accepted a 503")
 	}
 
 	// Nothing listening: both schemes fail.
-	if err := healthcheck(fmt.Sprintf("127.0.0.1:%d", freePort(t)), ""); err == nil {
+	if err := healthcheck(fmt.Sprintf("127.0.0.1:%d", freePort(t))); err == nil {
 		t.Fatal("healthcheck against a dead port succeeded")
 	}
 	// A malformed address fails at parsing.
-	if err := healthcheck("not-an-address", ""); err == nil {
+	if err := healthcheck("not-an-address"); err == nil {
 		t.Fatal("healthcheck accepted a malformed address")
 	}
 	// A host-less address (the container form, ":8445") probes loopback.
-	if err := healthcheck(fmt.Sprintf(":%d", freePort(t)), ""); err == nil {
+	if err := healthcheck(fmt.Sprintf(":%d", freePort(t))); err == nil {
 		t.Fatal("healthcheck against a dead loopback port succeeded")
 	}
 }
@@ -267,14 +267,14 @@ func TestRunServerNewFailure(t *testing.T) {
 	}
 }
 
-// TestHealthcheckPinsCertificate is the CodeQL fix's own test: the probe
-// VERIFIES the emulator's TLS certificate by pinning it, so it succeeds
-// against the instance that owns that certificate and fails — legibly —
-// against one it cannot vouch for. The server here is an httptest one, which
-// closes with the test, so nothing keeps the certificate file open.
-func TestHealthcheckPinsCertificate(t *testing.T) {
-	dataDir := t.TempDir()
-	cert, err := tlscert.Load(dataDir) // generates and persists cert.pem
+// TestHealthcheckWithoutADataDir is the regression this replaced a pinning
+// probe to fix. The documented throwaway configuration sets ARM_DATA_DIR="",
+// so the certificate exists only in the server's memory and no separate
+// process can pin it. The probe must still succeed against a TLS server —
+// otherwise every container using the recommended configuration is
+// permanently unhealthy, and anything waiting on service_healthy blocks.
+func TestHealthcheckWithoutADataDir(t *testing.T) {
+	cert, err := tlscert.Load("") // ephemeral, exactly as ARM_DATA_DIR="" gives
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,16 +284,8 @@ func TestHealthcheckPinsCertificate(t *testing.T) {
 	srv.TLS = &tls.Config{Certificates: []tls.Certificate{cert}}
 	srv.StartTLS()
 	defer srv.Close()
-	addr := strings.TrimPrefix(srv.URL, "https://")
 
-	// Pinned: verification succeeds against the certificate on disk.
-	if err := healthcheck(addr, dataDir); err != nil {
-		t.Fatalf("healthcheck with the certificate pinned: %v", err)
-	}
-	// Nothing to pin: the probe reports that it cannot verify, rather than
-	// trusting whatever answered.
-	err = healthcheck(addr, t.TempDir())
-	if err == nil || !strings.Contains(err.Error(), "cannot verify") {
-		t.Fatalf("healthcheck with no certificate to pin = %v", err)
+	if err := healthcheck(strings.TrimPrefix(srv.URL, "https://")); err != nil {
+		t.Fatalf("healthcheck against an in-memory certificate: %v", err)
 	}
 }
