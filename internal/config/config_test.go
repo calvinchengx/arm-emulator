@@ -88,3 +88,31 @@ func TestMultiIssuerConfig(t *testing.T) {
 		t.Fatal("invalid second issuer accepted")
 	}
 }
+
+// TestLRODelayEnv: the async knobs come from the environment like every
+// other setting, and a value that is not a number falls back rather than
+// failing a boot.
+func TestLRODelayEnv(t *testing.T) {
+	t.Setenv("ARM_ENTRA_ISSUER", "https://e/t/v2.0")
+	t.Setenv("ARM_LRO_DELAY_SECONDS", "300")
+	t.Setenv("ARM_RETRY_AFTER_SECONDS", "7")
+	c, err := FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.LRODelaySeconds != 300 || c.RetryAfterSeconds != 7 {
+		t.Fatalf("lro knobs = %d / %d", c.LRODelaySeconds, c.RetryAfterSeconds)
+	}
+
+	t.Setenv("ARM_LRO_DELAY_SECONDS", "not-a-number")
+	t.Setenv("ARM_RETRY_AFTER_SECONDS", "0")
+	c, err = FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Unparseable falls back to the default, and Finish floors Retry-After
+	// at one second so a poller is never told to retry immediately.
+	if c.LRODelaySeconds != 0 || c.RetryAfterSeconds != 1 {
+		t.Fatalf("fallback knobs = %d / %d", c.LRODelaySeconds, c.RetryAfterSeconds)
+	}
+}

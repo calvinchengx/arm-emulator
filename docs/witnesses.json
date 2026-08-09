@@ -140,5 +140,25 @@
     "witnesses": [
       "go:TestCloudMetadata"
     ]
+  },
+  "asynchronous-group-delete-202-location-polling": {
+    "section": "Microsoft.Resources",
+    "claim": "asynchronous-group-delete-202-location-polling",
+    "witnesses": [
+      "sdk:TestAsyncOperationPollers",
+      "go:TestOperationPollingBranches",
+      "go:TestOperationStorageFailures",
+      "ci:az-cli"
+    ]
+  },
+  "asynchronous-vault-create-202-polling": {
+    "section": "Microsoft.KeyVault",
+    "claim": "asynchronous-vault-create-202-polling",
+    "witnesses": [
+      "sdk:TestAsyncOperationPollers",
+      "sdk:TestArmKeyVaultSDK",
+      "go:TestOperationPollingBranches",
+      "ci:az-cli"
+    ]
   }
 }

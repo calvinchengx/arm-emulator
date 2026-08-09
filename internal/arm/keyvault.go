@@ -55,7 +55,12 @@ func (s *Service) vaultBody(v *store.Vault) map[string]any {
 	if props.AccessPolicies == nil {
 		props.AccessPolicies = []AccessPolicyEntry{}
 	}
+	// A vault whose create is still polling reports the non-terminal state
+	// ARM reports; the clock decides when it turns Succeeded.
 	props.ProvisioningState = "Succeeded"
+	if inFlight, err := s.Store.OperationInFlight(vaultID(v.Subscription, v.ResourceGroup, v.Name)); err == nil && inFlight {
+		props.ProvisioningState = "Creating"
+	}
 	if props.VaultURI == "" {
 		props.VaultURI = fmt.Sprintf("https://%s.vault.azure.net/", v.Name)
 	}
@@ -186,6 +191,9 @@ func (s *Service) putVault(w http.ResponseWriter, r *http.Request, sub, rg, name
 		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
 		return
 	}
+	// ARM answers 201 for a create and 200 for an update.
+	_, getErr := s.Store.GetVault(sub, name)
+	existed := getErr == nil
 	props := body.Properties
 	if props.AccessPolicies == nil {
 		props.AccessPolicies = []AccessPolicyEntry{}
@@ -212,9 +220,21 @@ func (s *Service) putVault(w http.ResponseWriter, r *http.Request, sub, rg, name
 		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
 		return
 	}
-	// Real ARM runs this as an LRO; the emulator completes it inline and
-	// answers 200 with a terminal provisioningState, which SDK pollers accept.
-	writeJSON(w, http.StatusOK, s.vaultBody(v))
+	// ARM runs a vault create as an LRO: the response names an
+	// Azure-AsyncOperation to poll and reports a NON-terminal
+	// provisioningState until it completes, at which point the poller
+	// re-reads the resource. 201 for a create, 200 for an update, as ARM does.
+	op, err := s.startOperation("CreateVault", sub, vaultID(sub, rg, name))
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
+		return
+	}
+	s.asyncHeaders(w, r, op)
+	status := http.StatusCreated
+	if existed {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, s.vaultBody(v))
 }
 
 // updateAccessPolicy is PUT .../vaults/{name}/accessPolicies/{add|replace|remove},

@@ -48,6 +48,8 @@ func run(args []string) error {
 	fs.StringVar(&cfg.SubscriptionID, "subscription-id", cfg.SubscriptionID, "the seeded subscription id")
 	fs.StringVar(&cfg.TenantID, "tenant-id", cfg.TenantID, "the tenant id reported by /tenants")
 	fs.BoolVar(&cfg.DisableTLS, "disable-tls", cfg.DisableTLS, "serve plain HTTP")
+	fs.Int64Var(&cfg.LRODelaySeconds, "lro-delay", cfg.LRODelaySeconds, "virtual seconds an async operation stays InProgress")
+	fs.IntVar(&cfg.RetryAfterSeconds, "retry-after", cfg.RetryAfterSeconds, "seconds advertised in Retry-After on 202s")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

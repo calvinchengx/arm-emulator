@@ -170,14 +170,15 @@ func TestResourceGroupAndAssignmentErrors(t *testing.T) {
 	if code, _ := r.do(t, "DELETE", rgPath, "", true); code != http.StatusNoContent {
 		t.Fatalf("absent rg delete = %d", code)
 	}
-	// Create, then a case-insensitive get finds it, then delete is 200.
+	// Create, then a case-insensitive get finds it, then delete is the
+	// asynchronous 202 a poller follows.
 	if code, _ := r.do(t, "PUT", rgPath, `{"location":"westeurope"}`, true); code != http.StatusCreated {
 		t.Fatalf("create rg = %d", code)
 	}
 	if code, _ := r.do(t, "GET", "/subscriptions/"+subID+"/resourcegroups/RG-ERR"+v, "", true); code != http.StatusOK {
 		t.Fatalf("case-insensitive rg get = %d", code)
 	}
-	if code, _ := r.do(t, "DELETE", rgPath, "", true); code != http.StatusOK {
+	if code, _ := r.do(t, "DELETE", rgPath, "", true); code != http.StatusAccepted {
 		t.Fatalf("delete rg = %d", code)
 	}
 

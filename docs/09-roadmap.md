@@ -16,6 +16,11 @@ speculatively.
   `groups` claim (needed entra-emulator v0.3.1's delegated Azure-resource
   carve-out).
 - **P3** — the `az` CLI as the flagship witness, via `az cloud register`.
+- **P4** — ARM's **asynchronous-operation protocol**, both shapes: `Location`
+  polling for a group delete and `Azure-AsyncOperation` polling for a vault
+  create, completing on the controllable clock. Microsoft's own pollers
+  genuinely spin against it — held `InProgress`, released by advancing the
+  clock — rather than shortcutting a terminal first response.
 
 ## Candidates
 

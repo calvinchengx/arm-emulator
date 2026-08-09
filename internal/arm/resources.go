@@ -134,9 +134,9 @@ func (s *Service) resourceGroup(w http.ResponseWriter, r *http.Request, sub, nam
 		}
 		writeJSON(w, http.StatusOK, s.rgBody(g))
 	case http.MethodDelete:
-		// ARM deletes groups asynchronously (202 + Location); the emulator
-		// completes synchronously and reports 200, with 204 for absent — the
-		// shapes SDK pollers accept as terminal.
+		// ARM deletes groups asynchronously: 202 naming a Location to poll,
+		// or 204 when there was nothing to delete. The poller follows
+		// Location until it stops answering 202 (see operations.go).
 		err := s.Store.DeleteResourceGroup(sub, name)
 		if errors.Is(err, store.ErrNotFound) {
 			w.WriteHeader(http.StatusNoContent)
@@ -146,7 +146,13 @@ func (s *Service) resourceGroup(w http.ResponseWriter, r *http.Request, sub, nam
 			writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
 			return
 		}
-		w.WriteHeader(http.StatusOK)
+		op, err := s.startOperation("DeleteResourceGroup", sub,
+			fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", sub, name))
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
+			return
+		}
+		s.accept202(w, r, op)
 	default:
 		methodNotAllowed(w, r.Method)
 	}

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -34,6 +35,14 @@ type Config struct {
 	TenantID string
 	// DisableTLS serves plain HTTP.
 	DisableTLS bool
+
+	// LRODelaySeconds is the virtual time an asynchronous operation stays
+	// InProgress. Zero means it is terminal on its first poll — real
+	// pollers still walk the full protocol, but CI never waits. Raise it
+	// (or freeze the clock) to hold a poller in flight.
+	LRODelaySeconds int64
+	// RetryAfterSeconds is advertised on 202s and in-progress polls.
+	RetryAfterSeconds int
 }
 
 // Defaults shared with the family's compose file and docs.
@@ -46,14 +55,16 @@ const (
 // overrides first, then calls Finish.
 func FromEnvPartial() *Config {
 	return &Config{
-		Addr:             envOr("ARM_ADDR", ":8445"),
-		DataDir:          os.Getenv("ARM_DATA_DIR"),
-		EntraIssuer:      os.Getenv("ARM_ENTRA_ISSUER"),
-		EntraJWKSURL:     os.Getenv("ARM_ENTRA_JWKS_URL"),
-		EntraTLSInsecure: boolEnv("ARM_ENTRA_TLS_INSECURE"),
-		SubscriptionID:   envOr("ARM_SUBSCRIPTION_ID", DefaultSubscription),
-		TenantID:         envOr("ARM_TENANT_ID", DefaultTenant),
-		DisableTLS:       boolEnv("ARM_DISABLE_TLS"),
+		Addr:              envOr("ARM_ADDR", ":8445"),
+		DataDir:           os.Getenv("ARM_DATA_DIR"),
+		EntraIssuer:       os.Getenv("ARM_ENTRA_ISSUER"),
+		EntraJWKSURL:      os.Getenv("ARM_ENTRA_JWKS_URL"),
+		EntraTLSInsecure:  boolEnv("ARM_ENTRA_TLS_INSECURE"),
+		SubscriptionID:    envOr("ARM_SUBSCRIPTION_ID", DefaultSubscription),
+		TenantID:          envOr("ARM_TENANT_ID", DefaultTenant),
+		DisableTLS:        boolEnv("ARM_DISABLE_TLS"),
+		LRODelaySeconds:   int64(intEnv("ARM_LRO_DELAY_SECONDS", 0)),
+		RetryAfterSeconds: intEnv("ARM_RETRY_AFTER_SECONDS", 1),
 	}
 }
 
@@ -107,6 +118,9 @@ func (c *Config) Finish() error {
 	if c.SubscriptionID == "" {
 		return fmt.Errorf("ARM_SUBSCRIPTION_ID must not be empty")
 	}
+	if c.RetryAfterSeconds <= 0 {
+		c.RetryAfterSeconds = 1
+	}
 	return nil
 }
 
@@ -123,4 +137,15 @@ func boolEnv(key string) bool {
 		return true
 	}
 	return false
+}
+
+// intEnv reads an integer environment variable, falling back to def when
+// unset or unparseable.
+func intEnv(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
 }

@@ -14,6 +14,13 @@ canonical wiring to entra-emulator, matching the sibling emulators.
 | `--subscription-id` | `ARM_SUBSCRIPTION_ID` | `6082bfda-…-9feb` | The seeded subscription every resource lives under. |
 | `--tenant-id` | `ARM_TENANT_ID` | `6f89cf12-…-cf87` | Reported by `/tenants` and on subscription resources. |
 | `--disable-tls` | `ARM_DISABLE_TLS` | `false` | Serve plain HTTP (behind a terminating proxy, or for curl). |
+| `--lro-delay` | `ARM_LRO_DELAY_SECONDS` | `0` | Virtual seconds an asynchronous operation stays `InProgress`. Zero still walks the whole protocol — the operation is simply terminal on its first poll, so CI never waits. Raise it to watch a real SDK poller spin. |
+| `--retry-after` | `ARM_RETRY_AFTER_SECONDS` | `1` | Advertised in `Retry-After` on `202`s and in-progress polls. |
+
+Asynchronous operations complete on the **controllable clock**, not a timer:
+with a delay set, `POST /_emulator/clock {"advance": N}` is what finishes
+them, so a test can hold a poller in flight and release it deterministically
+with no sleeps. See [08-testing.md](08-testing.md).
 
 ### Default IDs changed in v0.2.0 (breaking)
 

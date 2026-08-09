@@ -28,7 +28,8 @@ func seedVault(t *testing.T, s *Service, name, props string) {
 	body := `{"location":"westeurope","properties":` + props + `}`
 	w := httptest.NewRecorder()
 	s.vaults(w, req("PUT", "/x", body), vaultScopeFor(name), []string{"vaults", name})
-	if w.Code != http.StatusOK {
+	// ARM answers a create 201 and names an Azure-AsyncOperation to poll.
+	if w.Code != http.StatusCreated {
 		t.Fatalf("seed vault = %d %s", w.Code, w.Body.Bytes())
 	}
 }

@@ -38,7 +38,7 @@ plainly what it leaves alone.
 |---|---|---|
 | Tenants + subscriptions discovery (`/tenants`, `/subscriptions`) | Served as real ARM does; one seeded subscription, unknown ids `SubscriptionNotFound` | 🟡 Emulated |
 | Resource groups CRUD + tags (case-insensitive names, PUT-as-upsert) | Real semantics, persisted | 🟢 Real |
-| Asynchronous group delete (`202` + `Location` polling) | Completes synchronously (`200`/`204`) — terminal shapes SDK pollers accept | 🟡 Emulated |
+| Asynchronous group delete (`202` + `Location` polling) | `202` naming a `Location` to poll, `Retry-After`, `202` while it runs and `200` when done — an `armresources` poller genuinely spins, observing `InProgress` before `Succeeded`; `204` when there was nothing to delete | 🟢 Real |
 | Tracked resources of arbitrary providers, `Microsoft.Resources/deployments` | — | 🔴 Not implemented |
 
 ## Microsoft.Authorization
@@ -63,7 +63,7 @@ plainly what it leaves alone.
 | Vault CRUD (`Microsoft.KeyVault/vaults`) with tags, SKU, `vaultUri` | Real semantics, persisted; creation requires an existing resource group, as ARM requires | 🟢 Real |
 | `accessPolicies` + the `add`/`replace`/`remove` operation | Real: `add` merges by objectId, `replace` swaps the list, `remove` drops by objectId — what `az keyvault set-policy` / `delete-policy` call | 🟢 Real |
 | `enableRbacAuthorization`, `enablePurgeProtection`, soft-delete settings | Stored, returned, and **fed to the data plane** — RBAC mode makes the vault ignore access policies, as real Key Vault does | 🟢 Real |
-| Asynchronous vault create (`202` + polling) | Completes inline with a terminal `provisioningState` — the shape SDK pollers accept | 🟡 Emulated |
+| Asynchronous vault create (`202` + polling) | `201`/`200` naming an `Azure-AsyncOperation` status document, with a non-terminal `provisioningState` of `Creating` until it completes; the `armkeyvault` poller walks the status document then re-reads the resource | 🟢 Real |
 | Private endpoints, network ACLs, deleted-vault recovery | — | 🔴 Not implemented |
 
 ## The family feed
