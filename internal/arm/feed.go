@@ -27,12 +27,23 @@ type EffectiveAssignment struct {
 	DataActions      []string `json:"dataActions"`
 	NotDataActions   []string `json:"notDataActions"`
 	Condition        string   `json:"condition,omitempty"`
+	// Denied carries the deny-assignment permissions that reach this
+	// principal at this scope. A deny beats the grant above it, so a data
+	// plane must check these first: an action matching a Denied entry's
+	// dataActions (and none of its notDataActions) is refused even though
+	// the role grants it. Carried per assignment, in the same shape as the
+	// grant, so the matcher a data plane already has applies unchanged.
+	Denied []DenyPermission `json:"denied,omitempty"`
 }
 
 // EffectiveAt returns every assignment that applies at scope — this scope and
 // every ancestor, since ARM assignments inherit downward.
 func (s *Service) EffectiveAt(scope string) ([]EffectiveAssignment, error) {
 	all, err := s.Store.ListRoleAssignments()
+	if err != nil {
+		return nil, err
+	}
+	denies, err := s.DenyAssignmentsAt(scope)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +66,15 @@ func (s *Service) EffectiveAt(scope string) ([]EffectiveAssignment, error) {
 			e.DataActions = append(e.DataActions, p.DataActions...)
 			e.NotDataActions = append(e.NotDataActions, p.NotDataActions...)
 		}
+		// A deny naming this principal (or naming everyone) overrides the
+		// grant. Group membership is resolved by the data plane, as it is
+		// for the assignment itself, so a deny on a group also rides along.
+		for _, d := range denies {
+			if !d.appliesToPrincipal([]string{a.PrincipalID}) {
+				continue
+			}
+			e.Denied = append(e.Denied, d.Permissions...)
+		}
 		out = append(out, e)
 	}
 	return out, nil
@@ -74,6 +94,16 @@ func (s *Service) ServeFeed(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
 		return
 	}
+	// Every deny reaching this scope, verbatim. `assignments[].denied`
+	// above covers the case where the deny names the assignment's own
+	// principal; this block is what a data plane consults when the caller
+	// reaches a deny through a GROUP it belongs to, since membership is
+	// resolved there and not here.
+	denies, err := s.DenyAssignmentsAt(scope)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
+		return
+	}
 	// When the scope names a vault, its whole configuration rides along —
 	// access policies, the RBAC/access-policy switch, purge protection and
 	// the soft-delete window. In Azure those are properties of the ARM
@@ -85,10 +115,11 @@ func (s *Service) ServeFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"scope":       scope,
-		"generated":   s.Store.Now(),
-		"assignments": eff,
-		"vault":       vault,
+		"scope":           scope,
+		"generated":       s.Store.Now(),
+		"assignments":     eff,
+		"denyAssignments": denies,
+		"vault":           vault,
 		// Kept alongside `vault` for consumers pinned to the earlier shape.
 		"accessPolicies":          vault.AccessPolicies,
 		"enableRbacAuthorization": vault.EnableRbacAuthorization,

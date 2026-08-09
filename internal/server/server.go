@@ -102,6 +102,11 @@ func (s *Server) registerControl() {
 		s.ARM.SetFaults(throttle, reject)
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 	})
+	// Deny assignments are seeded here rather than over ARM: Azure creates
+	// them from Blueprints, managed applications and deployment stacks, and
+	// exposes them read-only, so there is no real create wire to copy.
+	s.mux.HandleFunc("/_emulator/denyassignments", s.ARM.ServeDenyControl)
+	s.mux.HandleFunc("/_emulator/denyassignments/", s.ARM.ServeDenyControl)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

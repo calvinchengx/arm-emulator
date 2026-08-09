@@ -7,6 +7,7 @@ package server_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -515,5 +516,114 @@ func TestAsyncOperationPollers(t *testing.T) {
 	if created.Properties == nil || created.Properties.ProvisioningState == nil ||
 		*created.Properties.ProvisioningState != armkeyvault.VaultProvisioningStateSucceeded {
 		t.Fatalf("provisioningState after polling = %v", created.Properties)
+	}
+}
+
+// TestArmDenyAssignmentsSDK: Microsoft's own DenyAssignmentsClient reads the
+// deny-assignment surface — get by name, list at scope, and the atScope() and
+// principalId filters. The SDK has no create method, because ARM has none:
+// the seeding below goes through the emulator's control surface, which is
+// exactly the boundary this feature has in Azure.
+func TestArmDenyAssignmentsSDK(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	scope := "/subscriptions/" + subID
+	rgScope := scope + "/resourceGroups/rg1"
+	const denyName = "9b5ba1a4-4a4e-4d3c-9d1f-2b6f0e6f4c11"
+	const denied = "3f7a1c22-8f0e-4bd0-9d2a-77c9e2d5b301"
+
+	seed := fmt.Sprintf(`{"scope":%q,"denyAssignmentName":"Stack lockdown",
+		"description":"created by a deployment stack",
+		"permissions":[{"actions":["Microsoft.KeyVault/vaults/write"],
+		  "dataActions":["Microsoft.KeyVault/vaults/secrets/*"],
+		  "notDataActions":["Microsoft.KeyVault/vaults/secrets/readMetadata/action"]}],
+		"principals":[{"id":%q,"type":"ServicePrincipal"}]}`, scope, denied)
+	req, err := http.NewRequest("POST", f.srv.URL+"/_emulator/denyassignments/"+denyName,
+		strings.NewReader(seed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := f.srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("seeding the deny assignment = %d", resp.StatusCode)
+	}
+
+	client, err := armauthorization.NewDenyAssignmentsClient(subID, f.cred, f.opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Get: the SDK deserializes the full shape, including the members only
+	// deny assignments have.
+	got, err := client.Get(ctx, scope, denyName, nil)
+	if err != nil {
+		t.Fatalf("deny assignment Get: %v", err)
+	}
+	p := got.Properties
+	switch {
+	case p == nil || p.DenyAssignmentName == nil || *p.DenyAssignmentName != "Stack lockdown":
+		t.Fatalf("properties = %+v", p)
+	case p.IsSystemProtected == nil || !*p.IsSystemProtected:
+		t.Fatal("isSystemProtected did not deserialize")
+	case len(p.Principals) != 1 || p.Principals[0].ID == nil || *p.Principals[0].ID != denied:
+		t.Fatalf("principals = %+v", p.Principals)
+	case len(p.Permissions) != 1 || len(p.Permissions[0].DataActions) != 1 ||
+		len(p.Permissions[0].NotDataActions) != 1:
+		t.Fatalf("permissions = %+v", p.Permissions)
+	case p.DoNotApplyToChildScopes == nil || *p.DoNotApplyToChildScopes:
+		t.Fatalf("doNotApplyToChildScopes = %+v", p.DoNotApplyToChildScopes)
+	}
+
+	// List for scope: the deny made at the subscription is visible on the
+	// group beneath it, because deny assignments inherit as everything in
+	// ARM does.
+	names := map[string]bool{}
+	pager := client.NewListForScopePager(rgScope, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			t.Fatalf("deny assignment ListForScope: %v", err)
+		}
+		for _, d := range page.Value {
+			names[*d.Name] = true
+		}
+	}
+	if !names[denyName] {
+		t.Fatalf("inherited deny assignment not listed at the group: %v", names)
+	}
+
+	// atScope() excludes the inherited one; the principalId filter finds it
+	// at its own scope.
+	atScope := 0
+	pager = client.NewListForScopePager(rgScope, &armauthorization.DenyAssignmentsClientListForScopeOptions{
+		Filter: to.Ptr("atScope()"),
+	})
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			t.Fatalf("atScope() pager: %v", err)
+		}
+		atScope += len(page.Value)
+	}
+	if atScope != 0 {
+		t.Fatalf("atScope() at the group returned %d", atScope)
+	}
+	byPrincipal := 0
+	pager = client.NewListForScopePager(scope, &armauthorization.DenyAssignmentsClientListForScopeOptions{
+		Filter: to.Ptr("principalId eq '" + denied + "'"),
+	})
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			t.Fatalf("principalId pager: %v", err)
+		}
+		byPrincipal += len(page.Value)
+	}
+	if byPrincipal != 1 {
+		t.Fatalf("principalId filter returned %d", byPrincipal)
 	}
 }

@@ -193,6 +193,9 @@ func (s *Service) route(w http.ResponseWriter, r *http.Request, p *auth.Principa
 			case strings.EqualFold(rest[1], "roleassignments"):
 				s.roleAssignments(w, r, scope, rest[2:], p)
 				return
+			case strings.EqualFold(rest[1], "denyassignments"):
+				s.denyAssignments(w, r, scope, rest[2:])
+				return
 			}
 		}
 		if strings.EqualFold(rest[0], "microsoft.keyvault") && len(rest) >= 2 {

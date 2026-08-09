@@ -201,5 +201,20 @@
       "go:TestListResources",
       "go:TestListResourcesStorageFailure"
     ]
+  },
+  "deny-assignments": {
+    "section": "Microsoft.Authorization",
+    "claim": "deny-assignments",
+    "witnesses": [
+      "sdk:armauthorization DenyAssignmentsClient",
+      "ci:az-cli",
+      "go:TestDenyAssignmentReadSurface",
+      "go:TestDenyAssignmentsAreReadOnly",
+      "go:TestDenyBeatsGrant",
+      "go:TestDenyEvaluationRules",
+      "go:TestActionMatches",
+      "go:TestDenyReachesTheFamilyFeed",
+      "go:TestDenyStorageFailures"
+    ]
   }
 }
