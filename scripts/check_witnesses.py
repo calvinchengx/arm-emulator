@@ -49,11 +49,15 @@ CI = ROOT / ".github" / "workflows" / "ci.yml"
 # Sections that do not make capability claims: the legend, the conformance
 # table (itself a list of witnesses), emulator-only helpers, and the explicit
 # scope boundary.
+# Sections that carry no gradeable ARM claim: the legend, the witness roster,
+# surfaces with no ARM equivalent at all, and the declared scope boundary.
+# These names must match THIS repo's headings — they were inherited from a
+# sibling and named its sections, so two of them matched nothing here.
 SKIP_SECTIONS = {
     "Ecosystem conformance: real clients as witnesses",
-    "Emulator-only (no Key Vault equivalent — these exist for testing)",
+    "Emulator-only (no ARM equivalent — these exist for testing)",
     "Legend",
-    "Scope boundary: the vault, not the infrastructure around it",
+    "Scope boundary: the authorization slice, not all of ARM",
 }
 
 
