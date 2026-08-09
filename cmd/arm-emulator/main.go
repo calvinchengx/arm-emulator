@@ -95,9 +95,15 @@ func healthcheck(addr string) error {
 	if host == "" {
 		host = "127.0.0.1"
 	}
+	// The probe talks to this same process over loopback, and the emulator
+	// serves a self-signed certificate it generates itself — there is no CA to
+	// verify against and no network path an attacker could sit on. Skipping
+	// verification is what makes the container HEALTHCHECK work; it is not a
+	// transport used for anything else. (Outbound JWKS fetches are separate and
+	// verify unless ARM_ENTRA_TLS_INSECURE is set explicitly.)
 	client := &http.Client{
 		Timeout:   3 * time.Second,
-		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
+		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}, //nolint:gosec // loopback self-probe, see above
 	}
 	resp, err := client.Get("https://" + net.JoinHostPort(host, port) + "/health")
 	if err != nil {
