@@ -16,6 +16,10 @@ speculatively.
   `groups` claim (needed entra-emulator v0.3.1's delegated Azure-resource
   carve-out).
 - **P3** — the `az` CLI as the flagship witness, via `az cloud register`.
+- **P7** — **deny assignments**: read-only over ARM as in Azure, and really
+  evaluated — a deny beats the grant, with wildcards, notDataActions
+  carve-outs, excluded principals and doNotApplyToChildScopes deciding it,
+  and the verdict reaching the data planes through the family feed.
 - **P6** — **deleted-vault recovery**: `DELETE` makes a vault recoverable
   rather than destroyed, with `deletedVaults`, `createMode: recover`, purge,
   and a retention window on the controllable clock. Driving `az keyvault

@@ -91,6 +91,18 @@ def ensure_audience(audience, name):
         sys.exit(f"FAIL: registering {audience}: {e.code} {e.read()[:300]}")
 
 
+def http_body(method, url, body):
+    """http() with a request body — the emulator control surface takes JSON."""
+    req = urllib.request.Request(url, method=method,
+                                 data=body.encode() if body else None,
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, context=TLS, timeout=10) as resp:
+            return resp.status, resp.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read()
+
+
 def http(method, url):
     req = urllib.request.Request(url, method=method)
     try:
@@ -273,6 +285,39 @@ def driver():
     if any(d.get("name") == soft for d in still):
         sys.exit(f"FAIL: {soft} survived the purge: {still}")
     print("   purged")
+
+    print("-- 5c. deny assignments: read by the CLI, unwritable by it")
+    # Deny assignments have no `az` command of their own because ARM has no
+    # write API for them; `az rest` is how the CLI reaches the read surface,
+    # and it still carries a real token over the real wire. The seeding goes
+    # through the emulator control surface, standing in for the deployment
+    # stack that would create one in Azure.
+    deny_name = "7c9d2a41-6b0e-4f11-9c33-5d8a1e2b7f04"
+    seed = json.dumps({
+        "scope": f"/subscriptions/{SUB}",
+        "denyAssignmentName": "No secret reads",
+        "permissions": [{"dataActions": ["Microsoft.KeyVault/vaults/secrets/*"]}],
+        "principals": [{"id": SP_CLIENT, "type": "ServicePrincipal"}],
+    })
+    code, body = http_body("POST", f"{ARM}/_emulator/denyassignments/{deny_name}", seed)
+    if code != 201:
+        sys.exit(f"FAIL: seeding the deny assignment: {code} {body[:300]}")
+    listed = az_json("rest", "--method", "get", "--url",
+                     f"{ARM}/subscriptions/{SUB}/resourceGroups/{RG}"
+                     "/providers/Microsoft.Authorization/denyAssignments"
+                     "?api-version=2022-04-01") or {}
+    if not any(d.get("name") == deny_name for d in listed.get("value", [])):
+        sys.exit(f"FAIL: the deny assignment is not visible to the CLI at the group: {listed}")
+    print("   the CLI reads it, inherited from the subscription")
+    # And cannot write one: ARM refuses, so the emulator must refuse too.
+    refused = az("rest", "--method", "delete", "--url",
+                 f"{ARM}/subscriptions/{SUB}"
+                 f"/providers/Microsoft.Authorization/denyAssignments/{deny_name}"
+                 "?api-version=2022-04-01", check=False)
+    if refused.returncode == 0:
+        sys.exit("FAIL: the CLI deleted a deny assignment; ARM does not allow that")
+    print("   and cannot delete it, as ARM does not allow")
+    http_body("DELETE", f"{ARM}/_emulator/denyassignments/{deny_name}", "")
 
     print("-- 6. az role assignment create, then list filtered by scope")
     assignment = az_json("role", "assignment", "create",

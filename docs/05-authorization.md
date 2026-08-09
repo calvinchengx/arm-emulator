@@ -79,6 +79,53 @@ without ever being named. entra-emulator emits the claim when the app's
 `groupMembershipClaims` asks for it; its seeded *Engineering* group has Alice
 and Bob in it, which is what the family's CI exercises.
 
+## Deny assignments
+
+The one part of the model that takes access away. They behave differently
+from role assignments in two ways, and both are real here.
+
+**They are read-only over ARM.** No customer creates one: Azure Blueprints,
+managed applications and deployment stacks do. So `GET` and list work, and
+every other method is refused with a message saying where they come from — an
+emulator that let you `PUT` one would teach a habit Azure will not honour.
+Seeding therefore goes through the control surface, which is the honest place
+for something with no public wire to copy:
+
+```
+POST   /_emulator/denyassignments/{name}
+DELETE /_emulator/denyassignments/{name}
+```
+
+```json
+{
+  "scope": "/subscriptions/{sub}",
+  "denyAssignmentName": "No secret reads",
+  "permissions": [{ "dataActions": ["Microsoft.KeyVault/vaults/secrets/*"],
+                    "notDataActions": ["…/readMetadata/action"] }],
+  "principals": [{ "id": "{objectId}", "type": "ServicePrincipal" }],
+  "excludePrincipals": [],
+  "doNotApplyToChildScopes": false
+}
+```
+
+**They win.** A deny beats every role assignment granting the same action, and
+the evaluation is the feature — not the shape:
+
+- `*` matches any run of characters, segment boundaries included, so
+  `Microsoft.KeyVault/*` covers a vault's data actions.
+- `notDataActions` carve back out of what the deny takes: "deny everything
+  except reads" is expressible and honoured.
+- The all-principals GUID `00000000-0000-0000-0000-000000000000` denies
+  everyone; `excludePrincipals` exempts a named identity from it, which is how
+  a managed application locks a resource against everybody but itself.
+- A deny naming a **group** reaches its members, resolved as assignments are.
+- They inherit downward like everything in ARM, unless
+  `doNotApplyToChildScopes` pins one to its own scope.
+
+The data planes see this through the feed: each assignment carries the denies
+reaching its principal, and the whole set rides alongside for the group case.
+See [The family feed](07-family-feed.md).
+
 ## What is NOT here
 
 Authorization *decisions on ARM's own surface*. This emulator authenticates

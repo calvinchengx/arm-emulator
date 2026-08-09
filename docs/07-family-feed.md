@@ -36,7 +36,22 @@ and the roles' `dataActions` verbatim, and stops.
       "roleDefinitionId": "/subscriptions/…/roleDefinitions/4633458b-…",
       "scope": "/subscriptions/…/resourceGroups/rg1",
       "dataActions": ["Microsoft.KeyVault/vaults/secrets/getSecret/action", "…"],
-      "notDataActions": []
+      "notDataActions": [],
+      "denied": [
+        { "dataActions": ["Microsoft.KeyVault/vaults/secrets/*"], "notDataActions": [] }
+      ]
+    }
+  ],
+  "denyAssignments": [
+    {
+      "name": "7c9d2a41-…",
+      "scope": "/subscriptions/…",
+      "denyAssignmentName": "No secret reads",
+      "permissions": [{ "dataActions": ["Microsoft.KeyVault/vaults/secrets/*"] }],
+      "principals": [{ "id": "9e0ec08a-…", "type": "ServicePrincipal" }],
+      "excludePrincipals": [],
+      "doNotApplyToChildScopes": false,
+      "isSystemProtected": true
     }
   ],
   "accessPolicies": [
@@ -49,6 +64,16 @@ and the roles' `dataActions` verbatim, and stops.
 - **assignments** — everything applying at the scope, inherited entries
   included. An assignment whose role definition no longer resolves is skipped:
   it grants nothing, so reporting it would be misleading.
+- **assignments[].denied** — the deny-assignment permissions reaching this
+  assignment's own principal. A deny **beats** the grant beside it, so the
+  consumer must check these first: an action matching a `denied` entry's
+  `dataActions`, and none of its `notDataActions`, is refused even though the
+  role grants it. It is in the same shape as the grant, so the matcher a data
+  plane already has applies unchanged.
+- **denyAssignments** — every deny reaching the scope, verbatim. This is what
+  a consumer consults when the caller reaches a deny through a **group**:
+  membership is resolved in the data plane, not here, so a deny naming a group
+  cannot be attached to a user's assignment upstream. Consult both.
 - **accessPolicies** and **enableRbacAuthorization** — present when the scope
   names a vault, so the consumer can honour Key Vault's either/or.
 - Unauthenticated, like the `/_emulator` control surfaces: it is a localhost

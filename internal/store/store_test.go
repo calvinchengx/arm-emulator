@@ -399,3 +399,66 @@ func TestDeletedVaultStoreErrors(t *testing.T) {
 		t.Error("RecoverVault on a closed database succeeded")
 	}
 }
+
+func TestDenyAssignmentStore(t *testing.T) {
+	s, err := Open("", clock.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	d := &DenyAssignment{
+		Name: "d1", Scope: "/subscriptions/sub", ScopeDisplay: "/subscriptions/sub",
+		DisplayName: "No reads", PermissionsJSON: `[]`, PrincipalsJSON: `[{"id":"p1"}]`,
+		ExcludePrincipalsJSON: `[]`, IsSystemProtected: true,
+	}
+	if err := s.PutDenyAssignment(d); err != nil {
+		t.Fatal(err)
+	}
+	created := d.CreatedAt
+	// A second put keeps the original creation stamp, as an update should.
+	d.DisplayName = "No reads at all"
+	if err := s.PutDenyAssignment(d); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetDenyAssignment("D1") // names match case-insensitively
+	if err != nil || got.DisplayName != "No reads at all" || got.CreatedAt != created {
+		t.Fatalf("get = %+v %v", got, err)
+	}
+	if _, err := s.GetDenyAssignment("nope"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("get unknown = %v", err)
+	}
+	if err := s.DeleteDenyAssignment("d1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteDenyAssignment("d1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("double delete = %v", err)
+	}
+
+	// An unscannable row surfaces as an error rather than a short list —
+	// SQLite's dynamic typing lets text sit in an INTEGER column.
+	if _, err := s.db.Exec(`INSERT INTO deny_assignments
+(name, scope, scope_display, display_name, description, permissions_json, principals_json,
+ exclude_principals_json, do_not_apply_to_child_scopes, is_system_protected, created_at, updated_at)
+VALUES ('bad','/','/','','','[]','[]','[]',0,1,'not-a-number',0)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ListDenyAssignments(); err == nil {
+		t.Fatal("ListDenyAssignments ignored an unscannable row")
+	}
+	if _, err := s.GetDenyAssignment("bad"); err == nil {
+		t.Fatal("GetDenyAssignment ignored an unscannable row")
+	}
+
+	// A closed database fails every path rather than reporting emptiness.
+	s.Close()
+	if err := s.PutDenyAssignment(d); err == nil {
+		t.Fatal("put on a closed database")
+	}
+	if _, err := s.ListDenyAssignments(); err == nil {
+		t.Fatal("list on a closed database")
+	}
+	if err := s.DeleteDenyAssignment("d1"); err == nil {
+		t.Fatal("delete on a closed database")
+	}
+}
