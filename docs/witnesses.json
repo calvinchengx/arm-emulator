@@ -20,7 +20,7 @@
     "claim": "resource-id-grammar-subscriptions-s-resourcegroups-g-providers-ns-type-n",
     "witnesses": [
       "go:TestSplitProvider",
-      "go:TestArmAuthorizationSDK"
+      "sdk:TestArmAuthorizationSDK"
     ]
   },
   "api-version-required-and-validated-date-based-preview": {
@@ -42,7 +42,7 @@
     "section": "arm",
     "claim": "resource-groups-crud-tags-case-insensitive-names-put-as-upsert",
     "witnesses": [
-      "go:TestArmResourcesSDK",
+      "sdk:TestArmResourcesSDK",
       "go:TestResourceGroupCRUD"
     ]
   },
@@ -50,7 +50,7 @@
     "section": "arm",
     "claim": "built-in-role-definitions-with-their-real-guids-and-documented-data-actions",
     "witnesses": [
-      "go:TestArmAuthorizationSDK",
+      "sdk:TestArmAuthorizationSDK",
       "go:TestRoleLookup"
     ]
   },
@@ -58,7 +58,7 @@
     "section": "arm",
     "claim": "role-assignments-put-get-delete-at-any-scope",
     "witnesses": [
-      "go:TestArmAuthorizationSDK",
+      "sdk:TestArmAuthorizationSDK",
       "go:TestRoleAssignmentCRUD"
     ]
   },
@@ -66,7 +66,7 @@
     "section": "arm",
     "claim": "duplicate-scope-role-principal-roleassignmentexists",
     "witnesses": [
-      "go:TestArmAuthorizationSDK",
+      "sdk:TestArmAuthorizationSDK",
       "go:TestRoleAssignmentCRUD"
     ]
   },
@@ -81,7 +81,7 @@
     "section": "arm",
     "claim": "scope-inheritance-on-read-an-assignment-applies-to-every-scope-beneath-it",
     "witnesses": [
-      "go:TestArmAuthorizationSDK",
+      "sdk:TestArmAuthorizationSDK",
       "go:TestScopeApplies",
       "go:TestFamilyFeed"
     ]
@@ -90,7 +90,7 @@
     "section": "arm",
     "claim": "filter-atscope-and-principalid-eq",
     "witnesses": [
-      "go:TestArmAuthorizationSDK",
+      "sdk:TestArmAuthorizationSDK",
       "go:TestFilterParsing"
     ]
   },
@@ -98,7 +98,7 @@
     "section": "Microsoft.KeyVault",
     "claim": "Vault CRUD (`Microsoft.KeyVault/vaults`) with tags, SKU, `vaultUri`",
     "witnesses": [
-      "go:TestArmKeyVaultSDK",
+      "sdk:TestArmKeyVaultSDK",
       "go:TestVaultLifecycleBranches",
       "go:TestVaultCRUD"
     ]
@@ -107,7 +107,7 @@
     "section": "Microsoft.KeyVault",
     "claim": "`accessPolicies` + the `add`/`replace`/`remove` operation",
     "witnesses": [
-      "go:TestArmKeyVaultSDK",
+      "sdk:TestArmKeyVaultSDK",
       "go:TestAccessPolicyOperations",
       "go:TestApplyPolicyOpNilCurrent"
     ]
@@ -116,7 +116,7 @@
     "section": "Microsoft.KeyVault",
     "claim": "`enableRbacAuthorization`, `enablePurgeProtection`, soft-delete settings",
     "witnesses": [
-      "go:TestArmKeyVaultSDK",
+      "sdk:TestArmKeyVaultSDK",
       "go:TestVaultConfigAtForFeed",
       "go:TestVaultPropertiesEdgeCases"
     ]
@@ -125,7 +125,7 @@
     "section": "Microsoft.Authorization",
     "claim": "Assignments to a **group** principal (`principalType: Group`)",
     "witnesses": [
-      "go:TestArmAuthorizationSDK",
+      "sdk:TestArmAuthorizationSDK",
       "go:TestRoleAssignmentCRUD"
     ]
   },

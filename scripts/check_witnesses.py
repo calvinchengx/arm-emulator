@@ -12,10 +12,24 @@ Witness kinds, deliberately distinguished because they are not equal evidence:
 
   ci:<job>      a CI job driving a real external client (strongest — this is
                 what the rule in doc 24 actually asks for)
+  sdk:<Test>    a Go test in which MICROSOFT'S OWN client does the talking —
+                armresources, armauthorization, armkeyvault over ARM's wire.
+                Third-party evidence like ci:, but in-process rather than a
+                separate job, so it cannot catch what only a packaged release
+                and a real network would.
   go:<Test>     a Go test: real HTTP, real signed JWTs, real RBAC, but our own
                 client rather than a third party's
   boundary:...  the claim is scoped by a documented limitation, with the reason
   TODO          not yet identified — the point of --strict
+
+sdk: exists because the taxonomy was lying by omission. internal/server/
+sdk_test.go has driven Microsoft's real management SDKs since P0, but its
+tests were filed as go: — a kind whose own definition says "our own client
+rather than a third party's". The report therefore read "witnessed by a real
+external client: 0" for a repo whose centrepiece test is exactly that, which
+made arm look like the family's weakest evidence when it was merely the
+worst-labelled. A grading vocabulary that cannot express the evidence you have
+is a grading vocabulary that will be ignored.
 
 Usage:
     check_witnesses.py            report the mapping and exit 0
@@ -110,15 +124,18 @@ def main() -> int:
             shared.setdefault(witness, []).append(feature)
             if kind == "ci" and name not in jobs:
                 dangling.append(f"{key} → {witness} (no such CI job)")
-            elif kind == "go" and name not in tests:
+            elif kind in ("go", "sdk") and name not in tests:
                 dangling.append(f"{key} → {witness} (no such Go test)")
 
+    third_party = kinds.get("ci", 0) + kinds.get("sdk", 0)
     print(f"🟢 capability claims: {len(claims)}")
     print(f"  witnessed by a real external client (ci:) : {kinds.get('ci', 0)}")
+    print(f"  witnessed by Microsoft's own SDKs (sdk:)  : {kinds.get('sdk', 0)}")
     print(f"  witnessed by our own Go tests (go:)       : {kinds.get('go', 0)}")
     print(f"  scoped by a documented boundary           : {kinds.get('boundary', 0)}")
     print(f"  not yet identified (TODO)                 : {len(todo)}")
     print(f"  absent from the manifest                  : {len(missing)}")
+    print(f"  -- third-party evidence (ci: + sdk:)      : {third_party}")
 
     heavy = sorted(((w, c) for w, c in shared.items() if len(c) > 3),
                    key=lambda x: -len(x[1]))
