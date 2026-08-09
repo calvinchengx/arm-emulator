@@ -31,6 +31,7 @@ const subID = "6082bfda-63d0-46f4-8272-ae9195139feb"
 type fixture struct {
 	t    *testing.T
 	emu  *entra.Emulator
+	arm  *server.Server
 	srv  *httptest.Server
 	cred *azidentity.ClientSecretCredential
 	opts *arm.ClientOptions
@@ -106,7 +107,7 @@ func newFixture(t *testing.T) *fixture {
 	opts := &arm.ClientOptions{ClientOptions: policy.ClientOptions{
 		Cloud: cfgCloud, Transport: transport,
 	}}
-	return &fixture{t: t, emu: emu, srv: armSrv, cred: cred, opts: opts}
+	return &fixture{t: t, emu: emu, arm: s, srv: armSrv, cred: cred, opts: opts}
 }
 
 // TestArmResourcesSDK: the real armresources client creates, reads, lists and
@@ -425,5 +426,94 @@ func TestArmKeyVaultSDK(t *testing.T) {
 	}
 	if _, err := vc.Get(ctx, "rg-kv", "myvault", nil); err == nil {
 		t.Fatal("Get after Delete succeeded")
+	}
+}
+
+// TestAsyncOperationPollers is the LRO witness: Microsoft's own pollers walk
+// ARM's asynchronous protocol against this emulator, and they genuinely
+// SPIN — the operation is held in flight on the controllable clock, so the
+// poller observes a real InProgress before a real Succeeded rather than a
+// terminal first response it can shortcut.
+//
+// The two shapes are different code paths in the SDK: a DELETE follows
+// Location until it stops answering 202; a PUT follows Azure-AsyncOperation
+// until the status document turns terminal, then re-reads the resource.
+func TestAsyncOperationPollers(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	// Hold every operation in flight for five virtual minutes.
+	f.arm.Clock.Freeze()
+	f.arm.Cfg.LRODelaySeconds = 300
+
+	rgc, err := armresources.NewResourceGroupsClient(subID, f.cred, f.opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rgc.CreateOrUpdate(ctx, "rg-async", armresources.ResourceGroup{
+		Location: to.Ptr("westeurope"),
+	}, nil); err != nil {
+		t.Fatalf("CreateOrUpdate: %v", err)
+	}
+
+	// --- Location shape: DELETE ---
+	del, err := rgc.BeginDelete(ctx, "rg-async", nil)
+	if err != nil {
+		t.Fatalf("BeginDelete: %v", err)
+	}
+	if del.Done() {
+		t.Fatal("the poller finished before the operation could run — the delete was not asynchronous")
+	}
+	// One real poll while in flight: the SDK reports not-done.
+	if _, err := del.Poll(ctx); err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if del.Done() {
+		t.Fatal("poller reported done while the operation was still InProgress")
+	}
+	f.arm.Clock.Advance(301)
+	if _, err := del.PollUntilDone(ctx, nil); err != nil {
+		t.Fatalf("PollUntilDone(delete): %v", err)
+	}
+	if _, err := rgc.Get(ctx, "rg-async", nil); err == nil {
+		t.Fatal("the group survived a completed delete")
+	}
+
+	// --- Azure-AsyncOperation shape: PUT ---
+	if _, err := rgc.CreateOrUpdate(ctx, "rg-async2", armresources.ResourceGroup{
+		Location: to.Ptr("westeurope"),
+	}, nil); err != nil {
+		t.Fatalf("CreateOrUpdate: %v", err)
+	}
+	vc, err := armkeyvault.NewVaultsClient(subID, f.cred, f.opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	create, err := vc.BeginCreateOrUpdate(ctx, "rg-async2", "asyncvault", armkeyvault.VaultCreateOrUpdateParameters{
+		Location: to.Ptr("westeurope"),
+		Properties: &armkeyvault.VaultProperties{
+			TenantID: to.Ptr(f.emu.TenantID),
+			SKU: &armkeyvault.SKU{
+				Family: to.Ptr(armkeyvault.SKUFamilyA),
+				Name:   to.Ptr(armkeyvault.SKUNameStandard),
+			},
+			AccessPolicies: []*armkeyvault.AccessPolicyEntry{},
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("BeginCreateOrUpdate: %v", err)
+	}
+	if create.Done() {
+		t.Fatal("the vault create completed synchronously — it was not asynchronous")
+	}
+	f.arm.Clock.Advance(301)
+	created, err := create.PollUntilDone(ctx, nil)
+	if err != nil {
+		t.Fatalf("PollUntilDone(create): %v", err)
+	}
+	// The poller's final read is of the resource itself, and by then the
+	// provisioningState the emulator reports has turned terminal.
+	if created.Properties == nil || created.Properties.ProvisioningState == nil ||
+		*created.Properties.ProvisioningState != armkeyvault.VaultProvisioningStateSucceeded {
+		t.Fatalf("provisioningState after polling = %v", created.Properties)
 	}
 }

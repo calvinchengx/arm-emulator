@@ -170,6 +170,19 @@ func (s *Service) route(w http.ResponseWriter, r *http.Request, p *auth.Principa
 		return
 	}
 
+	// Asynchronous-operation polling. Both shapes hang off the subscription,
+	// and a client only ever follows the URL we handed it in a header.
+	if len(segs) == 4 && strings.EqualFold(segs[0], "subscriptions") {
+		switch {
+		case strings.EqualFold(segs[2], "operationresults"):
+			s.operationResults(w, r, segs[1], segs[3])
+			return
+		case strings.EqualFold(segs[2], "operationstatuses"):
+			s.operationStatuses(w, r, segs[1], segs[3])
+			return
+		}
+	}
+
 	// Provider paths: Microsoft.Authorization lives under any scope.
 	if scope, rest, ok := splitProvider(segs); ok {
 		if strings.EqualFold(rest[0], "microsoft.authorization") && len(rest) >= 2 {
