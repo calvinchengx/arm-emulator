@@ -1,5 +1,6 @@
 # arm-emulator
 
+[![version](https://img.shields.io/github/v/release/calvinchengx/arm-emulator?label=version)](https://github.com/calvinchengx/arm-emulator/releases/latest)
 [![CI](https://github.com/calvinchengx/arm-emulator/actions/workflows/ci.yml/badge.svg)](https://github.com/calvinchengx/arm-emulator/actions/workflows/ci.yml)
 [![Docs](https://github.com/calvinchengx/arm-emulator/actions/workflows/docs-site.yml/badge.svg)](https://calvinchengx.github.io/arm-emulator/)
 [![CodeQL](https://github.com/calvinchengx/arm-emulator/actions/workflows/codeql.yml/badge.svg)](https://github.com/calvinchengx/arm-emulator/actions/workflows/codeql.yml)
