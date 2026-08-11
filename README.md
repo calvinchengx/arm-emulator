@@ -65,6 +65,16 @@ Docs: <https://calvinchengx.github.io/arm-emulator/> — start with the
 [The family feed](docs/07-family-feed.md). What is real versus emulated is in
 the [parity map](docs/parity.md).
 
+## Emulator family
+
+`arm-emulator` is the ARM control plane. Its siblings are `entra-emulator` (the
+STS whose tokens this one validates), `azure-keyvault-emulator`,
+`fabric-emulator` and `azure-apim-emulator`.
+
+To run them together, see [**azure-emulators**](https://github.com/calvinchengx/azure-emulators): a composition-only repo
+holding the family `docker-compose.yml`, the shared issuer wiring, and the
+pinned image versions the members are tested against.
+
 ## License
 
 Apache-2.0. Clean-room: grounded solely in Microsoft's public documentation
