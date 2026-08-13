@@ -15,8 +15,8 @@
 > support names a test that exists and ran.
 
 A clean-room, local emulator of the **Azure Resource Manager control plane**
-(`management.azure.com`), scoped to what its sibling data planes need — the
-fourth member of an emulator family built on one principle: **the same trust
+(`management.azure.com`), scoped to what its sibling data planes need, part
+of an emulator family built on one principle: **the same trust
 relationships as production**.
 
 - [entra-emulator](https://github.com/calvinchengx/entra-emulator) — the STS:
