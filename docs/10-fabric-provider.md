@@ -33,8 +33,9 @@ Real ARM runs create, update, suspend, resume and delete as long-running
 operations. The emulator answers with the same headers the SDKs poll
 (`Azure-AsyncOperation` on PUT/PATCH, `Location` on DELETE/suspend/resume)
 and completes them on the controllable clock. With the default zero delay
-the first poll is already terminal, which is what `armfabric` and
-`azure-mgmt-fabric` accept.
+the first poll is already terminal, which is what `armfabric`,
+`azure-mgmt-fabric`, `@azure/arm-fabric` and `Azure.ResourceManager.Fabric`
+accept.
 
 A new capacity is assigned a Fabric REST GUID at create. ARM's own document
 does not carry it — Azure doesn't either — so it travels on the family feed
