@@ -43,7 +43,7 @@ homebrew_casks:
       branch: main
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: "https://github.com/calvinchengx/arm-emulator"
-    description: "A local emulator of the Azure Resource Manager control plane — subscriptions, resource groups and role assignments — in a single Go binary."
+    description: "A local emulator of the Azure Resource Manager control plane — subscriptions, resource groups, role assignments, Key Vault vaults and Fabric capacities — in a single Go binary."
     skip_upload: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}false{{ else }}true{{ end }}'
     commit_author:
       name: Calvin Cheng
@@ -68,11 +68,12 @@ winget:
       ARM Emulator is a local, SDK-compatible emulator of the Azure Resource
       Manager control plane: subscriptions, resource groups,
       Microsoft.Authorization role definitions and role assignments (with real
-      scope inheritance), and Microsoft.KeyVault vault resources with their
-      access policies. Real management clients — the az CLI via
-      `az cloud register`, and the armresources / armauthorization / armkeyvault
-      SDKs — drive it unmodified, and the assignments it stores are enforced by
-      the sibling data-plane emulators. Local development tool only.
+      scope inheritance), Microsoft.KeyVault vault resources with their
+      access policies, and Microsoft.Fabric/capacities. Real management
+      clients — the az CLI via `az cloud register`, and the armresources /
+      armauthorization / armkeyvault / armfabric SDKs — drive it unmodified,
+      and the assignments it stores are enforced by the sibling data-plane
+      emulators. Local development tool only.
     release_notes_url: "https://github.com/calvinchengx/arm-emulator/releases/tag/{{ .Tag }}"
     tags:
       - azure

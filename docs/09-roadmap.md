@@ -41,9 +41,10 @@ speculatively.
   clock — rather than shortcutting a terminal first response.
 
 - **P10** — **`Microsoft.Fabric/capacities`**: CRUD, SKU, suspend/resume,
-  check-name, list SKUs, and `list_usages` as provisioned CU. `armfabric` and
-  `azure-mgmt-fabric` 1.1.0b1 drive it unmodified; fabric-emulator consumes
-  the family feed.
+  check-name, list SKUs, and `list_usages` as provisioned CU. `armfabric`,
+  `azure-mgmt-fabric` 1.1.0b1, `@azure/arm-fabric` and
+  `Azure.ResourceManager.Fabric` drive it unmodified; fabric-emulator
+  consumes the family feed.
 
 ## Candidates
 

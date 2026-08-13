@@ -14,7 +14,8 @@ Each harness does the same work, in its own idiom: acquire an ARM-audience
 token from entra-emulator, create and read a resource group, parse ARM's error
 envelope for something absent, filter role definitions by name, write a role
 assignment, write one carrying an ABAC condition and be refused a malformed
-one, and be challenged for a garbage token.
+one, be challenged for a garbage token, and create a Microsoft.Fabric/capacities
+resource through that stack's Fabric management client.
 
     ./e2e/sdks/run.py                # all three
     ./e2e/sdks/run.py --only python  # one, when iterating

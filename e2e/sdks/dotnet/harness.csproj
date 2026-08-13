@@ -15,6 +15,7 @@
     <PackageReference Include="Azure.Identity" Version="1.17.0" />
     <PackageReference Include="Azure.ResourceManager.Resources" Version="1.11.0" />
     <PackageReference Include="Azure.ResourceManager.Authorization" Version="1.1.4" />
+    <PackageReference Include="Azure.ResourceManager.Fabric" Version="1.0.0" />
   </ItemGroup>
 
 </Project>

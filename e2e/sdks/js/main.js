@@ -16,6 +16,7 @@
 import { ClientSecretCredential } from '@azure/identity';
 import { ResourceManagementClient } from '@azure/arm-resources';
 import { AuthorizationManagementClient } from '@azure/arm-authorization';
+import { FabricClient } from '@azure/arm-fabric';
 
 const ARM = env('ARM_URL');
 const ENTRA = env('ENTRA_URL');
@@ -153,7 +154,43 @@ try {
 }
 console.log('   401, as ARM challenges');
 
-console.log('-- 8. cleanup: delete the assignments and the group');
+console.log('-- 8. Microsoft.Fabric/capacities via @azure/arm-fabric');
+// 1.0.0 is the published package; it speaks api-version 2023-11-01.
+// credentialScopes is Track 2; this modular client wants credentials.scopes,
+// and without it it asks entra for `${endpoint}/.default` — a resource the
+// tenant does not have. Python's azure-mgmt-fabric 1.1.0b1 covers list_usages
+// and overage; this package has neither.
+const fabric = new FabricClient(credential, SUB, {
+  endpoint: ARM,
+  credentials: { scopes: SCOPES },
+});
+const capName = 'jssdkcap';
+const avail = await fabric.fabricCapacities.checkNameAvailability('westeurope', {
+  name: capName,
+  type: 'Microsoft.Fabric/capacities',
+});
+if (!avail.nameAvailable) fail(`checkNameAvailability = ${JSON.stringify(avail)}`);
+const createdCap = await fabric.fabricCapacities.createOrUpdate(RG, capName, {
+  location: 'westeurope',
+  sku: { name: 'F2', tier: 'Fabric' },
+  properties: {
+    administration: { members: ['js-sdk@example.com'] },
+  },
+}).pollUntilDone();
+if (createdCap.name !== capName) fail(`create capacity returned ${JSON.stringify(createdCap)}`);
+const gotCap = await fabric.fabricCapacities.get(RG, capName);
+if (gotCap.sku?.name !== 'F2' || gotCap.properties?.state !== 'Active') {
+  fail(`get capacity = ${JSON.stringify(gotCap)}`);
+}
+let capListed = false;
+for await (const c of fabric.fabricCapacities.listByResourceGroup(RG)) {
+  if (c.name === capName) capListed = true;
+}
+if (!capListed) fail('the capacity is missing from the list');
+await fabric.fabricCapacities.delete(RG, capName).pollUntilDone();
+console.log(`   ${createdCap.id}`);
+
+console.log('-- 9. cleanup: delete the assignments and the group');
 await authorization.roleAssignments.delete(scope, name);
 await authorization.roleAssignments.delete(scope, conditionalName);
 await resources.resourceGroups.beginDeleteAndWait(RG);
@@ -165,5 +202,5 @@ try {
 }
 console.log('   gone');
 
-console.log('\nJAVASCRIPT SDK E2E: PASS — @azure/arm-resources and ' +
-  '@azure/arm-authorization drive arm-emulator');
+console.log('\nJAVASCRIPT SDK E2E: PASS — @azure/arm-resources, ' +
+  '@azure/arm-authorization and @azure/arm-fabric drive arm-emulator');

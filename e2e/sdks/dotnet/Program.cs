@@ -24,6 +24,8 @@ using Azure.Identity;
 using Azure.ResourceManager;
 using Azure.ResourceManager.Authorization;
 using Azure.ResourceManager.Authorization.Models;
+using Azure.ResourceManager.Fabric;
+using Azure.ResourceManager.Fabric.Models;
 using Azure.ResourceManager.Resources;
 using Azure.ResourceManager.Resources.Models;
 
@@ -255,7 +257,55 @@ catch (RequestFailedException e)
 }
 Console.WriteLine("   401, as ARM challenges");
 
-Console.WriteLine("-- 8. cleanup: delete the assignments and the group");
+Console.WriteLine("-- 8. Microsoft.Fabric/capacities via Azure.ResourceManager.Fabric");
+// 1.0.0 speaks api-version 2023-11-01: create/get/list/delete and check-name,
+// but not list_usages or properties.overage (those arrived later, and Python
+// already covers them).
+const string capName = "dotnetsdkcap";
+var nameCheck = new FabricNameAvailabilityContent
+{
+    Name = capName,
+    ResourceType = "Microsoft.Fabric/capacities",
+};
+var avail = await subscription.CheckFabricCapacityNameAvailabilityAsync(
+    new AzureLocation("westeurope"), nameCheck);
+if (avail.Value.IsNameAvailable != true)
+{
+    Fail($"CheckFabricCapacityNameAvailability = {avail.Value.IsNameAvailable}");
+}
+var rg = created.Value;
+var capacities = rg.GetFabricCapacities();
+var capData = new FabricCapacityData(
+    new AzureLocation("westeurope"),
+    new FabricCapacityProperties(new FabricCapacityAdministration(new[] { "dotnet-sdk@example.com" })),
+    new FabricSku("F2", FabricSkuTier.Fabric));
+var cap = await capacities.CreateOrUpdateAsync(WaitUntil.Completed, capName, capData);
+if (cap.Value.Data.Name != capName)
+{
+    Fail($"CreateOrUpdate capacity returned {cap.Value.Data.Name}");
+}
+var gotCap = await capacities.GetAsync(capName);
+if (gotCap.Value.Data.Sku.Name != "F2" ||
+    gotCap.Value.Data.Properties.State != FabricResourceState.Active)
+{
+    Fail($"Get capacity = {gotCap.Value.Data.Sku.Name} {gotCap.Value.Data.Properties.State}");
+}
+var capListed = false;
+await foreach (var c in capacities.GetAllAsync())
+{
+    if (c.Data.Name == capName)
+    {
+        capListed = true;
+    }
+}
+if (!capListed)
+{
+    Fail("the capacity is missing from the list");
+}
+await cap.Value.DeleteAsync(WaitUntil.Completed);
+Console.WriteLine($"   {cap.Value.Data.Id}");
+
+Console.WriteLine("-- 9. cleanup: delete the assignments and the group");
 await (await assignments.GetAsync(assignmentName)).Value.DeleteAsync(WaitUntil.Completed);
 await (await assignments.GetAsync(conditionalName)).Value.DeleteAsync(WaitUntil.Completed);
 await (await groups.GetAsync(ResourceGroupName)).Value.DeleteAsync(WaitUntil.Completed);
@@ -271,8 +321,9 @@ catch (RequestFailedException)
 Console.WriteLine("   gone");
 
 Console.WriteLine();
-Console.WriteLine(".NET SDK E2E: PASS — Azure.ResourceManager.Resources and "
-    + "Azure.ResourceManager.Authorization drive arm-emulator");
+Console.WriteLine(".NET SDK E2E: PASS — Azure.ResourceManager.Resources, "
+    + "Azure.ResourceManager.Authorization and Azure.ResourceManager.Fabric "
+    + "drive arm-emulator");
 
 // A credential that hands the pipeline nonsense, so the 401 and its
 // WWW-Authenticate challenge are exercised by this stack too.
