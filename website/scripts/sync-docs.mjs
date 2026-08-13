@@ -126,6 +126,8 @@ Local development tool only — intentionally insecure (self-signed TLS, and ` +
 ` +
       `- [Microsoft.KeyVault](06-keyvault-provider.md) — the vault resource and its access policies
 ` +
+      `- [Microsoft.Fabric](10-fabric-provider.md) — capacities, the ARM resource fabric-emulator consumes
+` +
       `- [The family feed](07-family-feed.md) — how a data plane learns what ARM decided
 ` +
       `- [Testing](08-testing.md) — the controllable clock, injected faults, and what CI verifies

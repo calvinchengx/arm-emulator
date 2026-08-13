@@ -39,6 +39,7 @@ func New(cfg *config.Config, jwksClient *http.Client) (*Server, error) {
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "now": ck.Now()})
 	})
 	s.mux.HandleFunc("GET /_family/authorization", a.ServeFeed)
+	s.mux.HandleFunc("GET /_family/capacities", a.ServeCapacitiesFeed)
 	// The decision itself, for a data plane that would rather ask than
 	// reimplement ABAC condition evaluation.
 	s.mux.HandleFunc("/_family/authorization/evaluate", a.ServeEvaluate)

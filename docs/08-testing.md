@@ -31,8 +31,9 @@ equivalent for the CLI is `az cloud register`; see the
 
 - **Real management SDKs** in `go test`: `armresources` (resource groups),
   `armauthorization` (role definitions, assignments, inheritance, `atScope()`,
-  duplicate conflict) and `armkeyvault` (vault CRUD, access-policy add and
-  remove) — all against an in-process real entra-emulator.
+  duplicate conflict), `armkeyvault` (vault CRUD, access-policy add and
+  remove) and `armfabric` (capacity CRUD, suspend/resume, check-name,
+  `list_usages`) — all against an in-process real entra-emulator.
 - **The `az` CLI**, unmodified, driving the family as a registered cloud
   (in azure-keyvault-emulator's CI).
 - **The authorization chain**: an ARM assignment flipping a data plane's

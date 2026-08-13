@@ -65,6 +65,17 @@ plainly what it leaves alone.
 | Asynchronous vault create (`202` + polling) | `201`/`200` naming an `Azure-AsyncOperation` status document, with a non-terminal `provisioningState` of `Creating` until it completes; the `armkeyvault` poller walks the status document then re-reads the resource | 🟢 Real |
 | Deleted-vault recovery (vault-level soft delete + purge) | `DELETE` makes a vault **recoverable, not destroyed**: it keeps its name, appears under `deletedVaults` with a `scheduledPurgeDate`, and comes back through `createMode: recover`. A plain create over the held name is `VaultAlreadyExists`; `purge` destroys it asynchronously; the retention window (7-90 days, default 90) closes on the controllable clock. Soft delete and recovery are each one transaction, so a vault is never both live and deleted | 🟢 Real |
 
+## Microsoft.Fabric
+
+| ARM feature | Emulator | Type |
+|---|---|---|
+| Capacity CRUD (`Microsoft.Fabric/capacities`) with SKU, tags, administration | Real semantics, persisted; creation requires an existing resource group and `properties.administration.members`; name is 3–63 lowercase alphanumeric starting with a letter; F-series SKUs `F2`–`F2048` | 🟢 Real |
+| Suspend / resume | `POST …/suspend` and `…/resume` are `202` LROs; the resource's `state` is `Paused` or `Active` afterwards, as `armfabric` reads it | 🟢 Real |
+| Check name availability | `POST …/locations/{loc}/checkNameAvailability` — `nameAvailable`, or `Invalid` / `AlreadyExists` with a message | 🟢 Real |
+| List SKUs (subscription-wide and per capacity) | The documented F-series ladder; per-capacity uses the existing-resource SKU shape `armfabric` deserialises | 🟢 Real |
+| `list_usages` | Returns provisioned F-SKU CU in the location (an Active F64 counts as 64; paused counts as 0). **Not consumed compute** — the emulator does not meter jobs | 🟡 Emulated |
+| `properties.overage` | Stored and returned (`Enabled`/`Disabled`, threshold). Does not burst or throttle | 🟡 Emulated |
+
 ## Emulator-only (no ARM equivalent — these exist for testing)
 
 | Feature | Purpose |
@@ -73,6 +84,7 @@ plainly what it leaves alone.
 | Fault injection (`/_emulator/faults`) | Force `429` + `Retry-After` or `500`, to exercise SDK retry paths |
 | The authorization decision (`POST /_family/authorization/evaluate`) | One question, one answer: does this caller hold this action at this scope, given these request attributes? It applies ARM's own order — deny assignments override, then a role must grant the action, then its ABAC condition must be satisfied — and says which assignment decided it. Azure has no such public endpoint; conditions can only be evaluated where they can be parsed, so the alternative is every data plane reimplementing the language |
 | The family feed (`GET /_family/authorization?scope=…`) | Effective assignments plus their dataActions, for the sibling data planes. Azure's internal ARM→data-plane propagation is not public wire, so there is no ARM behaviour to grade this against — it is ours by necessity, and deliberately thin: assignments and role dataActions verbatim, each data plane mapping them onto its own operations |
+| The capacities feed (`GET /_family/capacities`) | Every `Microsoft.Fabric/capacities` resource this process holds, with the Fabric REST GUID ARM assigned at create, so fabric-emulator can list them without impersonating an ARM client. Same localhost-coordination exception as the authorization feed |
 
 ## Ecosystem conformance: real clients as witnesses
 
@@ -81,10 +93,11 @@ plainly what it leaves alone.
 | `armresources` (Azure Go SDK) | Resource groups: create/get/list/delete, tags, 404s; the **401 challenge** (a garbage token, `azcore` reads `AuthenticationFailed` and the bearer challenge) and the **error envelope** parsed into a typed `ResponseError` with ARM's correlation headers | 🟢 CI `test` |
 | `armauthorization` (Azure Go SDK) | Role definitions (list + `$filter` + get-by-id), role assignments (create/get/list/delete), duplicate conflict, inheritance, `atScope()`, an assignment to a **nonexistent role definition refused**; **ABAC conditions** written, read back and refused when malformed; **deny assignments** get + list-for-scope with `atScope()` and `principalId` filters | 🟢 CI `test` |
 | `armkeyvault` (Azure Go SDK) | Vault create/get/list/delete, access-policy add and remove | 🟢 CI `test` |
+| `armfabric` (Azure Go SDK) | Capacity create/get/list/update/suspend/resume/delete, check-name, `list_usages`, overage round-trip | 🟢 CI `test` |
 | `azidentity` (`ClientSecretCredential`, custom cloud) | The ARM-audience token path against an in-process real **entra-emulator** | 🟢 CI `test` |
 | **The authorization chain** (entra → ARM assignment → Key Vault data plane) | A role assignment written over ARM flips the vault from `403` to authorized, revocation flips it back, and an access policy grants it again — three real processes | 🟢 CI `arm-chain` (in azure-keyvault-emulator) |
 | **`az` CLI** via `az cloud register` | The family registered as a cloud — including **autodetection from `/metadata/endpoints`**, where one flag registers a cloud and the CLI discovers the login endpoint it could not have guessed — then login, **`api-version` missing and malformed both refused** (`az rest`, the only client that sends a raw URL), group/vault create, **custom role definition create/list/delete**, **vault delete/list-deleted/recover/purge**, **deny assignments read via `az rest` (and refused a write)**, **role assignment with `--condition` (and a malformed one refused)**, role assignment create+delete, set-policy — asserted against the Key Vault data plane | 🟢 CI `az-cli` (in azure-keyvault-emulator) |
-| **Python** (`azure-mgmt-resource`, `azure-mgmt-authorization`, `azure-identity`) | Token, resource groups (create/get/list/delete), the error envelope typed, role definitions with `$filter`, role assignments, an ABAC condition written and a malformed one refused, a garbage token challenged | 🟢 CI `sdks` |
+| **Python** (`azure-mgmt-resource`, `azure-mgmt-authorization`, `azure-mgmt-fabric`, `azure-identity`) | Token, resource groups (create/get/list/delete), the error envelope typed, role definitions with `$filter`, role assignments, an ABAC condition written and a malformed one refused, a garbage token challenged, **Fabric capacity** create/get/list/`list_usages`/delete with overage round-trip | 🟢 CI `sdks` |
 | **JavaScript** (`@azure/arm-resources`, `@azure/arm-authorization`, `@azure/identity`) | The same, in its own idiom. Found a real defect: these clients join endpoint and scope without normalizing, so every request begins `//subscriptions/…`, and a redirect to the clean path cost them their `Authorization` header | 🟢 CI `sdks` |
 | **.NET** (`Azure.ResourceManager.*`, `Azure.Identity`) | The same again, against a custom `ArmEnvironment`, pinning the emulator's certificate rather than disabling validation. Found a second defect: a ten-year certificate that Apple platforms refuse to trust at all | 🟢 CI `sdks` |
 

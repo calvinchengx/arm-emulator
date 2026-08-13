@@ -22,12 +22,13 @@ relationships as production**.
 - [entra-emulator](https://github.com/calvinchengx/entra-emulator) — the STS:
   issues the tokens (including `aud: https://management.azure.com`).
 - **arm-emulator** — the management plane: subscriptions, resource groups,
-  **role assignments** (`Microsoft.Authorization`), and vault resources
-  (`Microsoft.KeyVault/vaults` access policies).
+  **role assignments** (`Microsoft.Authorization`), vault resources
+  (`Microsoft.KeyVault/vaults` access policies), and Fabric capacities
+  (`Microsoft.Fabric/capacities`).
 - [azure-keyvault-emulator](https://github.com/calvinchengx/azure-keyvault-emulator)
   — the data plane that **enforces** those assignments on every request.
-- [fabric-emulator](https://github.com/calvinchengx/fabric-emulator) — future
-  consumer (`Microsoft.Fabric/capacities`).
+- [fabric-emulator](https://github.com/calvinchengx/fabric-emulator) — consumes
+  `Microsoft.Fabric/capacities` over the family feed.
 
 The point: `az role assignment create` and Microsoft's real management SDKs
 (`armauthorization`, `azure-mgmt-authorization`, `@azure/arm-authorization`,
@@ -40,12 +41,12 @@ closing the last emulated gap in the family's authorization story.
 **Working** — the ARM envelope (resource-ID grammar, error shape,
 ARM-audience tokens, anonymous cloud discovery), subscriptions and resource
 groups, `Microsoft.Authorization` role definitions and assignments with real
-scope inheritance, and `Microsoft.KeyVault/vaults` with access policies.
-Microsoft's own clients drive it unmodified — the **`az` CLI** via
-`az cloud register`, and the `armresources` / `armauthorization` /
-`armkeyvault` SDKs — and the assignments it stores are enforced by
-azure-keyvault-emulator's data plane. 98%+ coverage with a CI floor; every
-green parity claim names its witness.
+scope inheritance, `Microsoft.KeyVault/vaults` with access policies, and
+`Microsoft.Fabric/capacities`. Microsoft's own clients drive it unmodified —
+the **`az` CLI** via `az cloud register`, and the `armresources` /
+`armauthorization` / `armkeyvault` / `armfabric` SDKs — and the assignments
+it stores are enforced by azure-keyvault-emulator's data plane. 98%+ coverage
+with a CI floor; every green parity claim names its witness.
 
 Install: `go install github.com/calvinchengx/arm-emulator/cmd/arm-emulator@latest`,
 `brew install calvinchengx/tap/arm-emulator`,
@@ -61,7 +62,8 @@ make doctor   # what is missing from the toolchain?
 
 Docs: <https://calvinchengx.github.io/arm-emulator/> — start with the
 [Quickstart](docs/01-quickstart.md), then [Architecture](docs/03-architecture.md),
-[Authorization](docs/05-authorization.md) and
+[Authorization](docs/05-authorization.md),
+[Microsoft.Fabric](docs/10-fabric-provider.md) and
 [The family feed](docs/07-family-feed.md). What is real versus emulated is in
 the [parity map](docs/parity.md).
 

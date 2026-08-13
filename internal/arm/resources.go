@@ -233,6 +233,11 @@ func (s *Service) listResources(w http.ResponseWriter, r *http.Request, sub stri
 		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
 		return
 	}
+	cs, err := s.Store.ListFabricCapacities(sub, "")
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "InternalServerError", err.Error())
+		return
+	}
 	items := []map[string]any{}
 	for _, v := range vs {
 		const kind = "Microsoft.KeyVault/vaults"
@@ -249,6 +254,24 @@ func (s *Service) listResources(w http.ResponseWriter, r *http.Request, sub stri
 			"name":     v.Name,
 			"type":     kind,
 			"location": v.Location,
+			"tags":     tags,
+		})
+	}
+	for _, c := range cs {
+		const kind = "Microsoft.Fabric/capacities"
+		if wantType != "" && !strings.EqualFold(wantType, kind) {
+			continue
+		}
+		if wantName != "" && !strings.EqualFold(wantName, c.Name) {
+			continue
+		}
+		tags := map[string]string{}
+		_ = json.Unmarshal([]byte(c.TagsJSON), &tags)
+		items = append(items, map[string]any{
+			"id":       fabricCapacityID(c.Subscription, c.ResourceGroup, c.Name),
+			"name":     c.Name,
+			"type":     kind,
+			"location": c.Location,
 			"tags":     tags,
 		})
 	}

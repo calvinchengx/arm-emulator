@@ -255,5 +255,39 @@
       "go:TestGrantsActionArithmetic",
       "go:TestEvaluateStorageFailures"
     ]
+  },
+  "capacity-crud-microsoft-fabric-capacities-with-sku-tags-administration": {
+    "section": "Microsoft.Fabric",
+    "claim": "capacity-crud-microsoft-fabric-capacities-with-sku-tags-administration",
+    "witnesses": [
+      "sdk:TestArmFabricSDK",
+      "ci:sdks",
+      "go:TestFabricCapacityLifecycle",
+      "go:TestFamilyCapacitiesFeed"
+    ]
+  },
+  "suspend-resume": {
+    "section": "Microsoft.Fabric",
+    "claim": "suspend-resume",
+    "witnesses": [
+      "sdk:TestArmFabricSDK",
+      "go:TestFabricSuspendResumeAndSkus"
+    ]
+  },
+  "check-name-availability": {
+    "section": "Microsoft.Fabric",
+    "claim": "check-name-availability",
+    "witnesses": [
+      "sdk:TestArmFabricSDK",
+      "ci:sdks",
+      "go:TestFabricCheckNameAndUsages"
+    ]
+  },
+  "list-skus-subscription-wide-and-per-capacity": {
+    "section": "Microsoft.Fabric",
+    "claim": "list-skus-subscription-wide-and-per-capacity",
+    "witnesses": [
+      "go:TestFabricSuspendResumeAndSkus"
+    ]
   }
 }

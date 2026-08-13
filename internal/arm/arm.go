@@ -210,6 +210,19 @@ func (s *Service) route(w http.ResponseWriter, r *http.Request, p *auth.Principa
 				return
 			}
 		}
+		if strings.EqualFold(rest[0], "microsoft.fabric") && len(rest) >= 2 {
+			switch {
+			case strings.EqualFold(rest[1], "capacities"):
+				s.fabricCapacities(w, r, scope, rest[1:])
+				return
+			case strings.EqualFold(rest[1], "skus"):
+				s.fabricSkus(w, r, scope)
+				return
+			case strings.EqualFold(rest[1], "locations"):
+				s.fabricLocations(w, r, scope, rest[1:])
+				return
+			}
+		}
 		writeErr(w, http.StatusBadRequest, "NoRegisteredProviderFound",
 			fmt.Sprintf("No registered resource provider found for location and API version for type '%s'.",
 				strings.Join(rest, "/")))
