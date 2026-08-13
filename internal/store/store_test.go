@@ -298,6 +298,83 @@ func TestVaultClosedDBErrors(t *testing.T) {
 	}
 }
 
+func TestFabricCapacityCRUD(t *testing.T) {
+	s := newStore(t)
+	c := &FabricCapacity{Subscription: "sub", ResourceGroup: "rg", Name: "cap1", SKUName: "F64"}
+	if err := s.PutFabricCapacity(c); err != nil {
+		t.Fatal(err)
+	}
+	if c.Location == "" || c.TagsJSON != "{}" || c.PropertiesJSON != "{}" || c.FabricID == "" || c.SKUTier != "Fabric" {
+		t.Fatalf("defaults not applied: %+v", c)
+	}
+	id := c.FabricID
+	if err := s.PutFabricCapacity(&FabricCapacity{Subscription: "sub", ResourceGroup: "rg2", Name: "cap1",
+		Location: "eastus", SKUName: "F8", TagsJSON: `{"a":"b"}`, PropertiesJSON: `{"state":"Active"}`}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetFabricCapacity("sub", "CAP1")
+	if err != nil || got.Location != "eastus" || got.ResourceGroup != "rg2" || got.SKUName != "F8" || got.FabricID != id {
+		t.Fatalf("upsert = %+v %v", got, err)
+	}
+	if _, err := s.GetFabricCapacity("sub", "absent"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("absent capacity = %v", err)
+	}
+
+	if err := s.PutFabricCapacity(&FabricCapacity{Subscription: "sub", ResourceGroup: "other", Name: "cap2", SKUName: "F2"}); err != nil {
+		t.Fatal(err)
+	}
+	all, err := s.ListFabricCapacities("sub", "")
+	if err != nil || len(all) != 2 {
+		t.Fatalf("list all = %d %v", len(all), err)
+	}
+	narrowed, err := s.ListFabricCapacities("sub", "OTHER")
+	if err != nil || len(narrowed) != 1 || narrowed[0].Name != "cap2" {
+		t.Fatalf("list by group = %+v %v", narrowed, err)
+	}
+	if l, _ := s.ListFabricCapacities("other-sub", ""); len(l) != 0 {
+		t.Fatalf("cross-subscription leak: %v", l)
+	}
+
+	if err := s.DeleteFabricCapacity("sub", "cap1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteFabricCapacity("sub", "cap1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("double delete = %v", err)
+	}
+
+	if _, err := s.db.Exec(`INSERT INTO fabric_capacities
+(subscription, resource_group, name, location, sku_name, sku_tier, tags_json, properties_json, fabric_id, created_at)
+VALUES ('sub','rg','bad','loc','F2','Fabric','{}','{}','id','not-a-number')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ListFabricCapacities("sub", ""); err == nil {
+		t.Fatal("ListFabricCapacities ignored an unscannable row")
+	}
+	if _, err := s.GetFabricCapacity("sub", "bad"); err == nil {
+		t.Fatal("GetFabricCapacity ignored an unscannable row")
+	}
+}
+
+func TestFabricCapacityClosedDBErrors(t *testing.T) {
+	s, err := Open("", clock.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	if err := s.PutFabricCapacity(&FabricCapacity{Subscription: "s", Name: "c", SKUName: "F2"}); err == nil {
+		t.Fatal("PutFabricCapacity on a closed DB succeeded")
+	}
+	if _, err := s.ListFabricCapacities("s", ""); err == nil {
+		t.Fatal("ListFabricCapacities on a closed DB succeeded")
+	}
+	if err := s.DeleteFabricCapacity("s", "c"); err == nil {
+		t.Fatal("DeleteFabricCapacity on a closed DB succeeded")
+	}
+	if err := s.migrateFabricCapacities(); err == nil {
+		t.Fatal("migrateFabricCapacities on a closed DB succeeded")
+	}
+}
+
 func TestRoleDefinitionCRUDAndClosedDB(t *testing.T) {
 	s, err := Open("", clock.New())
 	if err != nil {

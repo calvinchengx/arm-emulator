@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/fabric/armfabric"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/calvinchengx/arm-emulator/internal/config"
@@ -429,6 +430,166 @@ func TestArmKeyVaultSDK(t *testing.T) {
 		t.Fatalf("Delete: %v", err)
 	}
 	if _, err := vc.Get(ctx, "rg-kv", "myvault", nil); err == nil {
+		t.Fatal("Get after Delete succeeded")
+	}
+}
+
+// TestArmFabricSDK: the real armfabric client creates a capacity, lists it,
+// suspends and resumes it, round-trips overage, and reads list_usages —
+// azure-mgmt-fabric 1.1.0b1's Go twin, unmodified.
+func TestArmFabricSDK(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	rgc, err := armresources.NewResourceGroupsClient(subID, f.cred, f.opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rgc.CreateOrUpdate(ctx, "rg-fab", armresources.ResourceGroup{
+		Location: to.Ptr("westeurope"),
+	}, nil); err != nil {
+		t.Fatalf("resource group: %v", err)
+	}
+
+	fc, err := armfabric.NewCapacitiesClient(subID, f.cred, f.opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	avail, err := fc.CheckNameAvailability(ctx, "westeurope", armfabric.CheckNameAvailabilityRequest{
+		Name: to.Ptr("azsdktest"),
+		Type: to.Ptr("Microsoft.Fabric/capacities"),
+	}, nil)
+	if err != nil || avail.NameAvailable == nil || !*avail.NameAvailable {
+		t.Fatalf("check name available: %+v %v", avail, err)
+	}
+
+	poller, err := fc.BeginCreateOrUpdate(ctx, "rg-fab", "azsdktest", armfabric.Capacity{
+		Location: to.Ptr("westeurope"),
+		SKU: &armfabric.RpSKU{
+			Name: to.Ptr("F2"),
+			Tier: to.Ptr(armfabric.RpSKUTierFabric),
+		},
+		Properties: &armfabric.CapacityProperties{
+			Administration: &armfabric.CapacityAdministration{
+				Members: []*string{to.Ptr("azsdktest@example.com")},
+			},
+			Overage: &armfabric.CapacityOverageProperties{
+				State:                      to.Ptr(armfabric.CapacityOverageStateEnabled),
+				ThresholdCapacityUnitHours: to.Ptr[int32](4),
+			},
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("BeginCreateOrUpdate: %v", err)
+	}
+	created, err := poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		t.Fatalf("PollUntilDone: %v", err)
+	}
+	if created.Name == nil || *created.Name != "azsdktest" {
+		t.Fatalf("name = %+v", created.Name)
+	}
+	if created.Properties == nil || created.Properties.State == nil ||
+		*created.Properties.State != armfabric.ResourceStateActive {
+		t.Fatalf("state = %+v", created.Properties)
+	}
+	if created.Properties.Overage == nil || created.Properties.Overage.State == nil ||
+		*created.Properties.Overage.State != armfabric.CapacityOverageStateEnabled {
+		t.Fatalf("overage did not round-trip: %+v", created.Properties.Overage)
+	}
+
+	got, err := fc.Get(ctx, "rg-fab", "azsdktest", nil)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.SKU == nil || got.SKU.Name == nil || *got.SKU.Name != "F2" {
+		t.Fatalf("sku = %+v", got.SKU)
+	}
+
+	taken, err := fc.CheckNameAvailability(ctx, "westeurope", armfabric.CheckNameAvailabilityRequest{
+		Name: to.Ptr("azsdktest"),
+		Type: to.Ptr("Microsoft.Fabric/capacities"),
+	}, nil)
+	if err != nil || taken.NameAvailable == nil || *taken.NameAvailable {
+		t.Fatalf("taken name still available: %+v %v", taken, err)
+	}
+
+	var names []string
+	lp := fc.NewListByResourceGroupPager("rg-fab", nil)
+	for lp.More() {
+		page, err := lp.NextPage(ctx)
+		if err != nil {
+			t.Fatalf("ListByResourceGroup: %v", err)
+		}
+		for _, c := range page.Value {
+			names = append(names, *c.Name)
+		}
+	}
+	if len(names) != 1 || names[0] != "azsdktest" {
+		t.Fatalf("list by group = %v", names)
+	}
+
+	upd, err := fc.BeginUpdate(ctx, "rg-fab", "azsdktest", armfabric.CapacityUpdate{
+		SKU: &armfabric.RpSKU{Name: to.Ptr("F64"), Tier: to.Ptr(armfabric.RpSKUTierFabric)},
+	}, nil)
+	if err != nil {
+		t.Fatalf("BeginUpdate: %v", err)
+	}
+	updated, err := upd.PollUntilDone(ctx, nil)
+	if err != nil {
+		t.Fatalf("update poll: %v", err)
+	}
+	if updated.SKU == nil || updated.SKU.Name == nil || *updated.SKU.Name != "F64" {
+		t.Fatalf("updated sku = %+v", updated.SKU)
+	}
+
+	usages := fc.NewListUsagesPager("westeurope", nil)
+	var used int64
+	for usages.More() {
+		page, err := usages.NextPage(ctx)
+		if err != nil {
+			t.Fatalf("ListUsages: %v", err)
+		}
+		for _, q := range page.Value {
+			if q.CurrentValue != nil {
+				used = *q.CurrentValue
+			}
+		}
+	}
+	if used != 64 {
+		t.Fatalf("provisioned CU = %d; want 64", used)
+	}
+
+	sus, err := fc.BeginSuspend(ctx, "rg-fab", "azsdktest", nil)
+	if err != nil {
+		t.Fatalf("BeginSuspend: %v", err)
+	}
+	if _, err := sus.PollUntilDone(ctx, nil); err != nil {
+		t.Fatalf("suspend poll: %v", err)
+	}
+	paused, err := fc.Get(ctx, "rg-fab", "azsdktest", nil)
+	if err != nil || paused.Properties == nil || paused.Properties.State == nil ||
+		*paused.Properties.State != armfabric.ResourceStatePaused {
+		t.Fatalf("after suspend = %+v %v", paused.Properties, err)
+	}
+
+	res, err := fc.BeginResume(ctx, "rg-fab", "azsdktest", nil)
+	if err != nil {
+		t.Fatalf("BeginResume: %v", err)
+	}
+	if _, err := res.PollUntilDone(ctx, nil); err != nil {
+		t.Fatalf("resume poll: %v", err)
+	}
+
+	del, err := fc.BeginDelete(ctx, "rg-fab", "azsdktest", nil)
+	if err != nil {
+		t.Fatalf("BeginDelete: %v", err)
+	}
+	if _, err := del.PollUntilDone(ctx, nil); err != nil {
+		t.Fatalf("delete poll: %v", err)
+	}
+	if _, err := fc.Get(ctx, "rg-fab", "azsdktest", nil); err == nil {
 		t.Fatal("Get after Delete succeeded")
 	}
 }

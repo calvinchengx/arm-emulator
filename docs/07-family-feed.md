@@ -131,6 +131,19 @@ worth knowing, and both are visible in that repo's
 A transient ARM outage leaves the last-known grants in force rather than
 locking the vault out.
 
+## Capacities
+
+```
+GET /_family/capacities
+```
+
+The same localhost exception, for a different document: every
+`Microsoft.Fabric/capacities` resource, with the Fabric REST GUID ARM
+assigned at create, the ARM resource id, SKU, region, state and admins.
+fabric-emulator polls this and upserts those rows into `GET /v1/capacities`.
+There is no public ARM→Fabric sync wire to copy; inventing this one is the
+honest option, as it was for authorization.
+
 ## Proven end to end
 
 `e2e/arm-chain/run.py` and `e2e/az-cli/run.py` (both in

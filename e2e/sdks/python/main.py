@@ -5,6 +5,7 @@
 #     "azure-identity==1.25.3",
 #     "azure-mgmt-resource==26.0.0",
 #     "azure-mgmt-authorization==4.0.0",
+#     "azure-mgmt-fabric==1.1.0b1",
 # ]
 # ///
 """Microsoft's Python management SDKs driving arm-emulator.
@@ -33,6 +34,7 @@ import sys
 from azure.core.exceptions import ClientAuthenticationError, HttpResponseError
 from azure.identity import ClientSecretCredential
 from azure.mgmt.authorization import AuthorizationManagementClient
+from azure.mgmt.fabric import FabricMgmtClient
 from azure.mgmt.resource.resources import ResourceManagementClient
 
 ARM = os.environ["ARM_URL"]
@@ -167,7 +169,40 @@ def main():
             fail(f"garbage token produced {status}: {e}")
     print("   401, as ARM challenges")
 
-    print("-- 8. cleanup: delete the assignments and the group")
+    print("-- 8. Microsoft.Fabric/capacities via azure-mgmt-fabric")
+    fabric = FabricMgmtClient(
+        credential, SUB, base_url=ARM, credential_scopes=SCOPES)
+    cap_name = "pythonsdkcap"
+    avail = fabric.fabric_capacities.check_name_availability(
+        "westeurope", {"name": cap_name, "type": "Microsoft.Fabric/capacities"})
+    if not avail.name_available:
+        fail(f"check_name_availability = {avail}")
+    created = fabric.fabric_capacities.begin_create_or_update(
+        RG, cap_name, {
+            "location": "westeurope",
+            "sku": {"name": "F2", "tier": "Fabric"},
+            "properties": {
+                "administration": {"members": ["python-sdk@example.com"]},
+                "overage": {"state": "Enabled", "thresholdCapacityUnitHours": 4},
+            },
+        }).result()
+    if created.name != cap_name:
+        fail(f"create capacity returned {created}")
+    got = fabric.fabric_capacities.get(RG, cap_name)
+    if got.sku.name != "F2" or got.properties.state != "Active":
+        fail(f"get capacity = {got.sku} {got.properties}")
+    if got.properties.overage is None or got.properties.overage.state != "Enabled":
+        fail(f"overage did not round-trip: {got.properties.overage}")
+    names = [c.name for c in fabric.fabric_capacities.list_by_resource_group(RG)]
+    if cap_name not in names:
+        fail(f"capacity missing from list: {names}")
+    usages = list(fabric.fabric_capacities.list_usages("westeurope"))
+    if not usages or usages[0].current_value != 2:
+        fail(f"list_usages = {usages}")
+    fabric.fabric_capacities.begin_delete(RG, cap_name).result()
+    print(f"   {created.id}")
+
+    print("-- 9. cleanup: delete the assignments and the group")
     authorization.role_assignments.delete(scope, name)
     authorization.role_assignments.delete(scope, conditional)
     resources.resource_groups.begin_delete(RG).result()
@@ -178,8 +213,8 @@ def main():
         pass
     print("   gone")
 
-    print("\nPYTHON SDK E2E: PASS — azure-mgmt-resource and "
-          "azure-mgmt-authorization drive arm-emulator")
+    print("\nPYTHON SDK E2E: PASS — azure-mgmt-resource, "
+          "azure-mgmt-authorization and azure-mgmt-fabric drive arm-emulator")
 
 
 if __name__ == "__main__":

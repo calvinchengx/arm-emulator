@@ -40,11 +40,13 @@ speculatively.
   genuinely spin against it — held `InProgress`, released by advancing the
   clock — rather than shortcutting a terminal first response.
 
+- **P10** — **`Microsoft.Fabric/capacities`**: CRUD, SKU, suspend/resume,
+  check-name, list SKUs, and `list_usages` as provisioned CU. `armfabric` and
+  `azure-mgmt-fabric` 1.1.0b1 drive it unmodified; fabric-emulator consumes
+  the family feed.
+
 ## Candidates
 
-- **`Microsoft.Fabric/capacities`** — Fabric capacities are ARM resources, and
-  `armfabric` exists as a real SDK witness. This is the natural next provider,
-  waiting on fabric-emulator being free to consume it.
 - **Template deployments** (`Microsoft.Resources/deployments`) — the engine
   behind `az deployment group create` and Bicep. A large piece; worth it only
   when something in the family wants to stand a stack up from a template.

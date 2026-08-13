@@ -265,6 +265,31 @@ func TestFamilyFeed(t *testing.T) {
 	}
 }
 
+func TestFamilyCapacitiesFeed(t *testing.T) {
+	r := newRaw(t)
+	const v = "?api-version=2023-11-01"
+	rg := "/subscriptions/" + subID + "/resourceGroups/rg-fab"
+	if code, out := r.do(t, "PUT", rg+v, `{"location":"westeurope"}`, true); code != http.StatusCreated {
+		t.Fatalf("resource group = %d %s", code, out)
+	}
+	cap := rg + "/providers/Microsoft.Fabric/capacities/feedcap" + v
+	body := `{"location":"westeurope","sku":{"name":"F8","tier":"Fabric"},` +
+		`"properties":{"administration":{"members":["admin@example.com"]}}}`
+	if code, out := r.do(t, "PUT", cap, body, true); code != http.StatusCreated {
+		t.Fatalf("create capacity = %d %s", code, out)
+	}
+	code, out := r.do(t, "GET", "/_family/capacities", "", false)
+	if code != http.StatusOK || !strings.Contains(out, "feedcap") || !strings.Contains(out, `"F8"`) {
+		t.Fatalf("capacities feed = %d %s", code, out)
+	}
+	// An unknown Fabric type is refused, not silently dropped.
+	if code, out := r.do(t, "GET",
+		rg+"/providers/Microsoft.Fabric/gateways/g1"+v, "", true); code != http.StatusBadRequest ||
+		!strings.Contains(out, "NoRegisteredProviderFound") {
+		t.Fatalf("unknown fabric type = %d %s", code, out)
+	}
+}
+
 func TestControlSurface(t *testing.T) {
 	r := newRaw(t)
 	const v = "?api-version=2022-04-01"

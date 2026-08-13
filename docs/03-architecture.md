@@ -12,10 +12,11 @@ trust relationships as production**.
  arm-emulator ── subscriptions · resource groups
       │          Microsoft.Authorization/{roleDefinitions,roleAssignments}
       │          Microsoft.KeyVault/vaults (accessPolicies, purge protection)
-      │          (later) Microsoft.Fabric/capacities
+      │          Microsoft.Fabric/capacities
       ▼
  azure-keyvault-emulator ── enforces the assignments on its data plane
                             (the enforcement engine already exists; ARM becomes its feed)
+ fabric-emulator ────────── lists ARM-created capacities on GET /v1/capacities
 ```
 
 ## Why
@@ -58,16 +59,15 @@ those rows 🟢 with real-client witnesses.
 - `az cloud register` profile: the family becomes a first-class "cloud" the
   real CLI targets (`az login --service-principal` against entra-emulator,
   then `az role assignment create`, `az keyvault set-policy`).
-- Later: `Microsoft.Resources/deployments` (template deployment) and
-  `Microsoft.Fabric/capacities` when fabric-emulator integrates.
+- Later: `Microsoft.Resources/deployments` (template deployment).
 
 ## Witnesses (the oracle, per the family discipline)
 
 | Client | Kind |
 |---|---|
 | **`az` CLI** via a registered custom cloud — login, group create, role assignment create, set-policy | CI job (flagship) |
-| Go `sdk/resourcemanager`: `armresources`, `armauthorization`, `armkeyvault` | in `go test` |
-| Python `azure-mgmt-{resource,authorization,keyvault}` · JS `@azure/arm-*` · .NET `Azure.ResourceManager.*` | `e2e/sdk/run.py` matrix, 3 OSes |
+| Go `sdk/resourcemanager`: `armresources`, `armauthorization`, `armkeyvault`, `armfabric` | in `go test` |
+| Python `azure-mgmt-{resource,authorization,keyvault,fabric}` · JS `@azure/arm-*` · .NET `Azure.ResourceManager.*` | `e2e/sdk/run.py` matrix, 3 OSes |
 | End-to-end family chain: ARM assignment → keyvault data-plane enforcement flip | CI chain job |
 
 Every 🟢 parity claim names its witness in `docs/witnesses.json`, enforced by

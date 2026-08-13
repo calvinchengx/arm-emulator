@@ -39,6 +39,7 @@ export default defineConfig({
           items: [
             { slug: '05-authorization' },
             { slug: '06-keyvault-provider' },
+            { slug: '10-fabric-provider' },
             { slug: '07-family-feed' },
           ],
         },
