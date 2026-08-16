@@ -69,9 +69,15 @@ the [parity map](docs/parity.md).
 
 ## Emulator family
 
-`arm-emulator` is the ARM control plane. Its siblings are `entra-emulator` (the
-STS whose tokens this one validates), `azure-keyvault-emulator`,
-`fabric-emulator` and `azure-apim-emulator`.
+`arm-emulator` is the ARM control plane. Its siblings are
+[`entra-emulator`](https://github.com/calvinchengx/entra-emulator) (the STS
+whose tokens this one validates),
+[`azure-keyvault-emulator`](https://github.com/calvinchengx/azure-keyvault-emulator),
+[`fabric-emulator`](https://github.com/calvinchengx/fabric-emulator),
+[`azure-apim-emulator`](https://github.com/calvinchengx/azure-apim-emulator)
+(which validates entra's tokens but serves its own
+`Microsoft.ApiManagement` surface rather than calling this one) and
+[`databricks-emulator`](https://github.com/calvinchengx/databricks-emulator).
 
 To run them together, see [**azure-emulators**](https://github.com/calvinchengx/azure-emulators): a composition-only repo
 holding the family `docker-compose.yml`, the shared issuer wiring, and the
