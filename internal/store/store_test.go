@@ -14,7 +14,7 @@ func newStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { s.Close() })
+	t.Cleanup(func() { _ = s.Close() })
 	return s
 }
 
@@ -142,7 +142,9 @@ func TestClosedDBErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.Close()
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PutResourceGroup(&ResourceGroup{Subscription: "s", Name: "g"}); err == nil {
 		t.Fatal("PutResourceGroup on a closed DB succeeded")
 	}
@@ -282,7 +284,9 @@ func TestVaultClosedDBErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.Close()
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PutVault(&Vault{Subscription: "s", Name: "v"}); err == nil {
 		t.Fatal("PutVault on a closed DB succeeded")
 	}
@@ -360,7 +364,9 @@ func TestFabricCapacityClosedDBErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.Close()
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PutFabricCapacity(&FabricCapacity{Subscription: "s", Name: "c", SKUName: "F2"}); err == nil {
 		t.Fatal("PutFabricCapacity on a closed DB succeeded")
 	}
@@ -424,7 +430,9 @@ func TestRoleDefinitionCRUDAndClosedDB(t *testing.T) {
 		t.Fatalf("get of an absent definition = %v", err)
 	}
 
-	s.Close()
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PutRoleDefinition(d); err == nil {
 		t.Error("PutRoleDefinition on a closed database succeeded")
 	}
@@ -459,7 +467,9 @@ func TestDeletedVaultStoreErrors(t *testing.T) {
 		t.Fatalf("recover of an absent vault = %v", err)
 	}
 
-	s.Close()
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.SoftDeleteVault("sub", "v", 90); err == nil {
 		t.Error("SoftDeleteVault on a closed database succeeded")
 	}
@@ -482,7 +492,7 @@ func TestDenyAssignmentStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	d := &DenyAssignment{
 		Name: "d1", Scope: "/subscriptions/sub", ScopeDisplay: "/subscriptions/sub",
@@ -528,7 +538,9 @@ VALUES ('bad','/','/','','','[]','[]','[]',0,1,'not-a-number',0)`); err != nil {
 	}
 
 	// A closed database fails every path rather than reporting emptiness.
-	s.Close()
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PutDenyAssignment(d); err == nil {
 		t.Fatal("put on a closed database")
 	}

@@ -99,3 +99,14 @@ jobs:
         with:
           version: "0.11.32"
       - run: uv run --no-project --python 3.12 python scripts/check_witnesses.py --strict
+
+      # golangci-lint, gated at zero. The default linter set reports 522
+      # findings across the family, so the config excludes unchecked Close,
+      # Rollback and Fprintf, where the return value is unactionable at the
+      # call site, and everything that survives that is fixed rather than
+      # suppressed. The caps are lifted in .golangci.yml: by default identical
+      # issues stop at three, which reported six unchecked Close calls as two.
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
