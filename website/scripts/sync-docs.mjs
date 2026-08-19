@@ -8,6 +8,7 @@
 import { readdirSync, readFileSync, writeFileSync, rmSync, mkdirSync, existsSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { collectParity, writeParityHistory, parityManifest } from './parity-versions.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const REPO = join(here, '..', '..');
@@ -18,6 +19,19 @@ export const BASE = '/arm-emulator/';
 // The parity map is the one doc without a reading-order number: it is a living
 // reference rather than a chapter, and its URL is just /parity/.
 const PARITY_RE = /(^|\/)parity\.md$/;
+// Parity history comes from git TAGS: every `v*` tag carrying docs/parity.md is
+// a snapshot git already holds, so there is nothing to maintain by hand.
+const PARITY = collectParity(REPO);
+const IS_RELEASE = /^v\d+\.\d+\.\d+$/.test(PARITY.version);
+
+// A banner on the live ledger naming the version it describes, so a released
+// ledger is distinguishable from the tip of main.
+function parityStamp() {
+  const what = IS_RELEASE
+    ? `release **${PARITY.version}**`
+    : `**${PARITY.version}** (the live tip of \`main\`)`;
+  return `:::note\nThis ledger describes ${what}. Earlier releases are under [parity history](${BASE}parity-history/).\n:::\n\n`;
+}
 // Docs are `NN-name.md` chapters, plus the un-numbered parity map.
 const DOC_RE = /^(\d{2}-.*|parity)\.md$/;
 
@@ -82,6 +96,7 @@ function convert(name) {
   const h1 = raw.split('\n').find((l) => /^#\s+/.test(l));
   const title = h1 ? cleanTitle(h1.replace(/^#\s+/, '')) : name.replace(/\.md$/, '');
   let body = convertBody(raw, name);
+  if (PARITY_RE.test(name)) body = parityStamp() + body;
   // Point "Edit this page" at the real source in /docs (the generated copy
   // under src/content/docs/ is git-ignored), not Starlight's default path.
   const editUrl = `${REPO_URL}/edit/main/docs/${name}`;
@@ -153,4 +168,11 @@ for (const name of names) {
   writeFileSync(join(OUT, name), convert(name));
 }
 writeIndex();
-console.log(`sync-docs: wrote ${names.length} docs + index to src/content/docs/`);
+const info = writeParityHistory(OUT, PARITY, { convertBody });
+const DATA = join(here, '..', 'src', 'data');
+mkdirSync(DATA, { recursive: true });
+writeFileSync(join(DATA, 'parity-versions.json'), JSON.stringify(parityManifest(PARITY), null, 2) + '\n');
+console.log(
+  `sync-docs: wrote ${names.length} docs + index to src/content/docs/ ` +
+    `(parity ${info.version}; ${info.snapshots.length} tagged snapshot(s))`,
+);
