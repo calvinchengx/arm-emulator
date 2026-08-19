@@ -57,8 +57,14 @@ func TestLoadFailureModes(t *testing.T) {
 	if err := os.MkdirAll(dir2+"/tls", 0o755); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(dir2+"/tls/cert.pem", []byte("garbage"), 0o644)
-	os.WriteFile(dir2+"/tls/key.pem", []byte("garbage"), 0o600)
+	// Checked: if the corrupt PEMs are not actually written, the assertion
+	// below passes against valid files and proves nothing.
+	if err := os.WriteFile(dir2+"/tls/cert.pem", []byte("garbage"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir2+"/tls/key.pem", []byte("garbage"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := Load(dir2); err != nil {
 		t.Fatalf("Load over corrupt PEMs = %v; want regeneration", err)
 	}

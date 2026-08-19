@@ -395,6 +395,13 @@ func (s *Service) setCapacityState(w http.ResponseWriter, r *http.Request, sub, 
 	s.accept202(w, r, op)
 }
 
+// The messages below are written verbatim into the ARM error response as the
+// `message` of an InvalidSku error (see writeErr at the call sites), so they
+// are wire format rather than Go error strings. Real ARM messages are
+// sentences and end with a period; ST1005 would have us strip that and make
+// the emulator's payload differ from Azure's for a style rule.
+//
+//nolint:staticcheck // ST1005: response payload, not a Go error idiom
 func validateFabricSKU(sku fabricSKU) error {
 	if sku.Name == "" {
 		return fmt.Errorf("sku.name is required.")
