@@ -22,6 +22,23 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      # Naming the files matters: `test -z "$(gofmt -l .)"` fails with no
+      # output at all, so the one check whose entire job is "which file" tells
+      # you nothing and you reproduce it locally to find out.
+      - name: gofmt
+        # Linux only. Formatting is OS-independent, so checking it three times
+        # adds nothing, and on Windows it fails for a reason that is not about
+        # formatting at all: .gitattributes pins .sh, .py and .yml to LF but not
+        # .go, so Git for Windows checks Go files out with CRLF and gofmt lists
+        # every one of them. This is the same guard fabric-emulator uses.
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt would change these files:"
+            echo "$unformatted"
+            exit 1
+          fi
       - run: go vet ./...
       - run: go build ./...
       # The server tests start a real entra-emulator in-process; the real
