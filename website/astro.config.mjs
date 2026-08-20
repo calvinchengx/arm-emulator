@@ -22,7 +22,11 @@ export default defineConfig({
           href: 'https://github.com/calvinchengx/arm-emulator',
         },
       ],
-      components: { Head: './src/components/Head.astro' },
+      components: {
+        // Hosts the parity version picker beside the header search.
+        Search: './src/components/Search.astro',
+        Head: './src/components/Head.astro',
+      },
       sidebar: [
         {
           label: 'Getting started',
@@ -51,6 +55,8 @@ export default defineConfig({
           label: 'Project',
           items: [
             { slug: 'parity', label: 'Parity' },
+            { slug: 'parity-history' },
+            { slug: 'parity-history/changelog' },
             { slug: '09-roadmap' },
           ],
         },
