@@ -31,7 +31,7 @@ TENANT = "6f89cf12-978b-4d23-ac18-9ef0c127cf87"
 SP_CLIENT = "00d88624-f0d7-46f6-a641-6232c2608928"
 SP_SECRET = "daemon-app-secret"
 SUB = "6082bfda-63d0-46f4-8272-ae9195139feb"
-ENTRA_VERSION = os.environ.get("ENTRA_VERSION", "v0.8.1")
+ENTRA_VERSION = os.environ.get("ENTRA_VERSION", "v0.9.0")
 ARM_AUDIENCE = "https://management.azure.com"
 
 # The harness's own health checks bypass verification deliberately: they run
