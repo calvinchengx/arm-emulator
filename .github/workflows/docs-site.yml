@@ -6,6 +6,12 @@ on:
     paths:
       - 'docs/**'
       - 'site/**'
+      - 'scripts/assemble_site.py'
+      - 'scripts/check_docs_links.py'
+      - 'scripts/build_landing_data.py'
+      - 'scripts/coverage_badges.py'
+      - 'website/published-routes.txt'
+      - 'Makefile'
       - 'website/**'
       - 'scripts/build_landing_data.py'
       - 'scripts/coverage_badges.py'
@@ -20,6 +26,12 @@ on:
     paths:
       - 'docs/**'
       - 'site/**'
+      - 'scripts/assemble_site.py'
+      - 'scripts/check_docs_links.py'
+      - 'scripts/build_landing_data.py'
+      - 'scripts/coverage_badges.py'
+      - 'website/published-routes.txt'
+      - 'Makefile'
       - 'website/**'
       - 'scripts/build_landing_data.py'
       - 'scripts/coverage_badges.py'
@@ -66,43 +78,26 @@ jobs:
         with:
           node-version: '22'
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter arm-emulator-docs build
-
-      # The published site is the landing page at the root with the rendered
-      # docs beneath it, so `/` is the project's front door and every chapter
-      # lives under /docs/. The Astro base is `/arm-emulator/docs/` to match.
-      - name: Assemble the site
-        run: |
-          mkdir -p _site
-          cp site/index.html _site/index.html
-          cp -R website/dist _site/docs
-
-      # Badges are served from the site's own origin as shields `endpoint`
-      # documents — no third-party coverage service, no upload token. The Go
-      # figure is measured here rather than trusted from elsewhere, so the
-      # badge and the site always agree.
-      #
-      # They are written to the ROOT of _site, which is where they were served
-      # from before the docs moved down a level: the README's badge URLs are
-      # published and out of this repo's control, so they keep resolving.
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: Measure coverage and write the badge endpoints
-        run: |
-          go test -coverpkg=./... -coverprofile=cover.out ./... >/dev/null
-          pct=$(go tool cover -func=cover.out | tail -1 | awk '{print $3}' | tr -d '%')
-          echo "go coverage: ${pct}%"
-          python3 scripts/coverage_badges.py --out _site --go "$pct"
-
-      # The landing page states six totals and types none of them. This copies
-      # the manifests it reads and FAILS on a page that hardcodes a number or
-      # stops reading one, so a stale headline is a red build rather than a
-      # quiet lie. After the badges, because the coverage tile reads the badge
-      # document the step above writes.
-      - name: Landing page totals come from the manifests
-        run: python3 scripts/build_landing_data.py --out _site --landing site/index.html
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+      # ONE STEP, AND IT IS THE ONE A DEVELOPER RUNS. `make docs-serve` builds
+      # with this same target and then serves the result at the paths it
+      # publishes under, so what is previewed locally is what deploys from
+      # here. Spelling the sequence out in YAML instead is how the two drift:
+      # the local recipe is the one nobody updates, and it is also the only one
+      # anyone looks at before pushing.
+      #
+      # What it runs, and why each part is not redundant, is documented at the
+      # target in the Makefile. In short: the doc links (the Astro build exits
+      # 0 on a dangling one and publishes a 404), the Starlight build, the
+      # assembler with its pre-move route oracle and its self-test, the go
+      # coverage badge at the ROOT where the README's published shields URLs
+      # name it, and the landing page, which Astro never sees.
+      - run: make docs-build
 
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
