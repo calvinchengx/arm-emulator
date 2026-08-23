@@ -1,0 +1,17 @@
+# ARM Emulator
+
+> A clean-room local emulator of the Azure Resource Manager control plane and its Microsoft.Authorization RBAC, so an agent discovers that no role assignment means no access rather than being told. Scoped to the authorization slice, not all of ARM.
+
+## Documentation
+
+- [Quickstart](https://calvinchengx.github.io/arm-emulator/01-quickstart/): Bring up the management plane and its STS, register the pair with the real az CLI, and make a role assignment that a data plane will actually enforce.
+- [Installation](https://calvinchengx.github.io/arm-emulator/02-installation/): Every route ships the same single static binary — pure Go, no CGO, no runtime dependency.
+- [Architecture](https://calvinchengx.github.io/arm-emulator/03-architecture/): A clean-room, local emulator of the Azure Resource Manager (ARM) control plane — management.azure.com — scoped to what the emulator family's data planes need.
+- [Configuration](https://calvinchengx.github.io/arm-emulator/04-configuration/): Every setting is an ARM environment variable with a flag override. The compose contract (ARMENTRAISSUER, ARMENTRATLSINSECURE) is the canonical wiring to…
+- [Authorization: roles, assignments and scope](https://calvinchengx.github.io/arm-emulator/05-authorization/): Microsoft.Authorization is why this emulator exists. In Azure, role assignments are ARM resources — not something a data plane owns — so making authorization…
+- [Microsoft.KeyVault](https://calvinchengx.github.io/arm-emulator/06-keyvault-provider/): The vault resource itself: where access policies, purge protection and the RBAC-authorization switch are configured in real Azure — and therefore where…
+- [The family feed](https://calvinchengx.github.io/arm-emulator/07-family-feed/): How a sibling data plane learns which principals hold which permissions at its scope.
+- [Testing against this emulator](https://calvinchengx.github.io/arm-emulator/08-testing/): Token expiry and retry behaviour are otherwise untestable offline:
+- [Roadmap](https://calvinchengx.github.io/arm-emulator/09-roadmap/): Phases P0–P3 are shipped. What follows is driven by what the family's data planes actually need — a provider arrives when a sibling needs it, not speculatively.
+- [Microsoft.Fabric/capacities](https://calvinchengx.github.io/arm-emulator/10-fabric-provider/): Fabric capacities are ARM resources. The Fabric REST plane (api.fabric.microsoft.com) only lists them and assigns workspaces; create, SKU, suspend and resume…
+- [Feature parity: arm-emulator vs. real Azure Resource Manager](https://calvinchengx.github.io/arm-emulator/parity/): How the emulator's surface maps to real ARM (as specified in Azure/azure-rest-api-specs and documented at learn.microsoft.com/rest/api/resources), and — the…
