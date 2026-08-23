@@ -5,7 +5,10 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'site/**'
       - 'website/**'
+      - 'scripts/build_landing_data.py'
+      - 'scripts/coverage_badges.py'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'package.json'
@@ -16,7 +19,10 @@ on:
   pull_request:
     paths:
       - 'docs/**'
+      - 'site/**'
       - 'website/**'
+      - 'scripts/build_landing_data.py'
+      - 'scripts/coverage_badges.py'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'package.json'
@@ -63,10 +69,23 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter arm-emulator-docs build
 
+      # The published site is the landing page at the root with the rendered
+      # docs beneath it, so `/` is the project's front door and every chapter
+      # lives under /docs/. The Astro base is `/arm-emulator/docs/` to match.
+      - name: Assemble the site
+        run: |
+          mkdir -p _site
+          cp site/index.html _site/index.html
+          cp -R website/dist _site/docs
+
       # Badges are served from the site's own origin as shields `endpoint`
       # documents — no third-party coverage service, no upload token. The Go
       # figure is measured here rather than trusted from elsewhere, so the
       # badge and the site always agree.
+      #
+      # They are written to the ROOT of _site, which is where they were served
+      # from before the docs moved down a level: the README's badge URLs are
+      # published and out of this repo's control, so they keep resolving.
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -75,12 +94,20 @@ jobs:
           go test -coverpkg=./... -coverprofile=cover.out ./... >/dev/null
           pct=$(go tool cover -func=cover.out | tail -1 | awk '{print $3}' | tr -d '%')
           echo "go coverage: ${pct}%"
-          python3 scripts/coverage_badges.py --out website/dist --go "$pct"
+          python3 scripts/coverage_badges.py --out _site --go "$pct"
+
+      # The landing page states six totals and types none of them. This copies
+      # the manifests it reads and FAILS on a page that hardcodes a number or
+      # stops reading one, so a stale headline is a red build rather than a
+      # quiet lie. After the badges, because the coverage tile reads the badge
+      # document the step above writes.
+      - name: Landing page totals come from the manifests
+        run: python3 scripts/build_landing_data.py --out _site --landing site/index.html
 
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
         with:
-          path: website/dist
+          path: _site
 
   deploy:
     name: Deploy to GitHub Pages

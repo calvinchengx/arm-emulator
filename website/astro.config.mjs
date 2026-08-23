@@ -3,12 +3,13 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import { remarkMermaid } from './plugins/remark-mermaid.mjs';
 
-// The site is published to GitHub Pages under /arm-emulator/, so every
-// generated link needs that base. Docs content is generated from /docs by
+// The site is published to GitHub Pages under /arm-emulator/docs/, so every
+// generated link needs that base. The landing page in /site owns the root and
+// the rendered docs sit beneath it. Docs content is generated from /docs by
 // scripts/sync-docs.mjs before build — /docs stays the single source of truth.
 export default defineConfig({
   site: 'https://calvinchengx.github.io',
-  base: '/arm-emulator/',
+  base: '/arm-emulator/docs/',
   markdown: { remarkPlugins: [remarkMermaid] },
   integrations: [
     starlight({

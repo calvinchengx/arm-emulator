@@ -104,7 +104,7 @@ function diffParity(prev, cur) {
 }
 
 const versionSlug = (v) => v.replace(/[.+]/g, '-');
-const BASE = '/arm-emulator/';
+const BASE = '/arm-emulator/docs/';
 
 export function collectParity(repo) {
   const version = gitVersion(repo);
