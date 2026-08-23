@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARM Emulator: write a role assignment locally and watch it be enforced</title>
+<meta name="description" content="A clean-room Go emulator of the Azure Resource Manager control plane. Microsoft's own clients drive it unmodified, every green claim names the test that witnesses it, and this page says plainly that nothing here has been compared against a live Azure subscription.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗝</text></svg>">
+<style>
+:root{
+  --bg:#fbfbfa; --panel:#fff; --ink:#16181d; --muted:#5c6270; --line:#e3e5e9;
+  --accent:#2a5db0; --accent-soft:#e8eef9;
+  --ship:#1f6f3f; --ship-bg:#e6f3ea;
+  --wip:#8a5a00; --wip-bg:#fdf3e0;
+  --plan:#5c6270; --plan-bg:#eef0f3;
+  --none:#a33a3a; --none-bg:#fbe9e9;
+  --code:#f4f5f7;
+  --radius:14px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0f1115; --panel:#151920; --ink:#e8eaee; --muted:#98a0ae; --line:#262b34;
+    --accent:#7aa7ee; --accent-soft:#15223a;
+    --ship:#5fcf8a; --ship-bg:#112a1a;
+    --wip:#e0a94a; --wip-bg:#2a2114;
+    --plan:#98a0ae; --plan-bg:#1c212a;
+    --none:#e77f7f; --none-bg:#2e1616;
+    --code:#11151b;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.65;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:0 24px}
+a{color:var(--accent)}
+code{font-family:var(--mono);font-size:.9em;background:var(--code);padding:.15em .4em;border-radius:5px;overflow-wrap:anywhere}
+pre{background:var(--code);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;overflow-x:auto;font-family:var(--mono);font-size:.88rem;line-height:1.55}
+pre code{background:none;padding:0}
+h1,h2,h3{line-height:1.25;letter-spacing:-.02em}
+h2{font-size:1.7rem;margin:0 0 8px}
+.sec{padding:60px 0;border-top:1px solid var(--line)}
+.sec>.wrap>p.lede{color:var(--muted);font-size:1.05rem;max-width:70ch;margin:0 0 32px}
+
+/* nav */
+nav{border-bottom:1px solid var(--line);background:var(--bg)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:56px;gap:16px;flex-wrap:wrap}
+nav .brand{font-family:var(--mono);font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);text-decoration:none;font-weight:600}
+nav ul{list-style:none;display:flex;gap:22px;margin:0;padding:0;flex-wrap:wrap}
+nav li a{color:var(--muted);text-decoration:none;font-size:.9rem}
+nav li a.docs{color:var(--accent);font-weight:600}
+
+/* hero */
+.hero{padding:76px 0 64px}
+.eyebrow{font-family:var(--mono);font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin:0 0 18px}
+.hero h1{font-size:clamp(2.1rem,5.2vw,3.4rem);margin:0 0 20px;max-width:20ch}
+.hero p{font-size:1.15rem;color:var(--muted);max-width:64ch;margin:0 0 14px}
+.hero .claim{color:var(--ink);font-weight:600;border-left:3px solid var(--accent);padding-left:16px;margin-top:28px;max-width:60ch}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:32px}
+.btn{display:inline-block;padding:11px 20px;border-radius:10px;text-decoration:none;font-weight:600;font-size:.94rem;border:1px solid var(--line)}
+.btn.primary{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.btn.ghost{color:var(--ink)}
+.release-pill{display:inline-flex;align-items:center;gap:9px;margin:0 0 20px;padding:6px 14px;border:1px solid var(--line);border-radius:999px;background:var(--panel);text-decoration:none;color:var(--muted);font-size:.86rem}
+.release-pill b{color:var(--ship);font-family:var(--mono);font-size:.8rem}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-top:40px}
+.stat{background:var(--panel);padding:20px 18px}
+.stat b{display:block;font-size:1.9rem;letter-spacing:-.03em;line-height:1}
+.stat b small{font-size:.9rem;color:var(--muted);margin-left:2px}
+.stat>span{display:block;color:var(--muted);font-size:.84rem;margin-top:6px}
+
+/* cards */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px 22px 18px;display:flex;flex-direction:column}
+.card h3{font-size:1.05rem;margin:0 0 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card p{margin:0 0 12px;color:var(--muted);font-size:.95rem}
+.card .ev{font-family:var(--mono);font-size:.78rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:auto}
+.tag{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:999px;font-weight:600}
+.t-ship{color:var(--ship);background:var(--ship-bg)}
+.t-wip{color:var(--wip);background:var(--wip-bg)}
+.t-plan{color:var(--plan);background:var(--plan-bg)}
+.t-none{color:var(--none);background:var(--none-bg)}
+
+/* problem */
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.three .card strong{display:block;color:var(--ink);margin-bottom:6px}
+.three .card .fix{color:var(--accent);font-size:.9rem;font-weight:600;margin-top:auto}
+
+/* honest */
+.honest{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--wip);border-radius:var(--radius);padding:22px 24px}
+.honest h3{margin:0 0 8px;font-size:1.05rem}
+.honest p{margin:0 0 10px;color:var(--muted)}
+.tiers{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:.92rem;margin:14px 0 0}
+.tiers code{white-space:nowrap;justify-self:start}
+
+footer{padding:40px 0;color:var(--muted);font-size:.86rem;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <a class="brand" href="./">ARM Emulator</a>
+  <ul>
+    <li><a href="#get">Get it</a></li>
+    <li><a href="#run">Run it</a></li>
+    <li><a href="#honest">Status</a></li>
+    <li><a href="https://github.com/calvinchengx/arm-emulator">GitHub</a></li>
+    <li><a class="docs" href="docs/">Documentation &rarr;</a></li>
+  </ul>
+</div></nav>
+
+<section class="hero"><div class="wrap">
+  <p class="eyebrow">ARM Emulator</p>
+  <a class="release-pill" href="https://github.com/calvinchengx/arm-emulator/releases/latest"><b id="release-tag">&mdash;</b> <span>latest release &rarr;</span></a>
+  <h1>Write a role assignment on a laptop, and watch it actually be enforced.</h1>
+  <p>A clean-room Go emulator of the Azure Resource Manager control plane, <code>management.azure.com</code>: the ARM envelope and its error shape, subscriptions and resource groups, <code>Microsoft.Authorization</code> role definitions and assignments with real scope inheritance, <code>Microsoft.KeyVault/vaults</code>, and <code>Microsoft.Fabric/capacities</code>.</p>
+  <p>It exists to make one thing in the emulator family real rather than pretended: authorization. An assignment written here over ARM's wire is enforced by the sibling Key Vault data plane on the next request, and revoking it flips the answer back. Switching to real Azure is configuration, not a code path.</p>
+  <p>The <code>az</code> CLI and Microsoft's management SDKs for Go, Python, JavaScript and .NET run against it unmodified, which is the only reason any claim on this page is worth anything.</p>
+  <p class="claim">Every capability below names the check that proves it. Nothing here has been compared against a live Azure subscription, and this page says where that matters.</p>
+  <div class="cta">
+    <a class="btn primary" href="docs/">Read the docs</a>
+    <a class="btn ghost" href="https://github.com/calvinchengx/arm-emulator">Source on GitHub</a>
+    <a class="btn ghost" href="#run">Run it locally</a>
+    <a class="btn ghost" href="#honest">Honest status</a>
+  </div>
+  <div class="stats">
+    <div class="stat"><b id="witness-count">&mdash;</b><span>witnesses, and every green claim names one</span></div>
+    <div class="stat"><b><span id="claims-witnessed">&mdash;</span><small>/<span id="claims-green">&mdash;</span></small></b><span>green ledger rows carrying a witness</span></div>
+    <div class="stat"><b id="third-party-count">&mdash;</b><span>claims with third-party evidence behind them</span></div>
+    <div class="stat"><b id="client-count">&mdash;</b><span>real Microsoft clients drive it in CI</span></div>
+    <div class="stat"><b id="coverage-go">&mdash;</b><span>statement coverage, measured in this build</span></div>
+    <div class="stat"><b id="verified-count">&mdash;</b><span>rows compared against a live Azure subscription</span></div>
+  </div>
+</div></section>
+
+<section class="sec"><div class="wrap">
+  <h2>The problem this solves</h2>
+  <p class="lede">Authorization is the part of an Azure platform that is hardest to test and worst to get wrong, because the only place it runs is a tenant somebody pays for.</p>
+  <div class="three">
+    <div class="card"><strong>Every other emulator fakes the permission check</strong>
+      <p>A data-plane emulator with no control plane beside it has to invent one. It either allows everything, or reads a hand-written allow list that no real client ever wrote. The behaviour you most need to test is the one part that was never exercised.</p>
+      <p class="fix">Real assignments, written by real clients, enforced by the sibling data plane</p></div>
+    <div class="card"><strong>Scope inheritance and ABAC are easy to get subtly wrong</strong>
+      <p>An assignment at a resource group applies to everything beneath it, on segment boundaries and case-insensitively. A deny assignment beats the role that granted the same action. An ABAC condition can fail closed on a missing attribute. Each of these is a rule you find out about in production.</p>
+      <p class="fix">Inheritance, deny assignments and the version 2.0 condition language, evaluated</p></div>
+    <div class="card"><strong>Agreeing with yourself proves nothing</strong>
+      <p>An emulator tested only by its own client is a mirror. The evidence worth having comes from software written by someone else: Microsoft's own SDKs and the <code>az</code> CLI, which have already found two real defects here that our own tests were happy with.</p>
+      <p class="fix">The ledger names the tier of every witness, and the weak ones stay visible</p></div>
+  </div>
+</div></section>
+
+<section class="sec"><div class="wrap">
+  <h2>What it does</h2>
+  <p class="lede">Each capability carries its evidence and an honest status. The tiers are ranked: a CI job driving a packaged external client outranks Microsoft's own SDK in-process, which outranks a test written with our own client on both ends.</p>
+  <div class="grid">
+    <div class="card"><h3>The ARM envelope <span class="tag t-ship">sdk-witnessed</span></h3>
+      <p>ARM-audience bearer tokens whose signature is verified before any claim is read, the <code>401</code> and <code>WWW-Authenticate</code> challenge <code>azidentity</code> walks unmodified, ARM's resource-ID grammar, <code>api-version</code> required and validated, the error envelope with correlation headers, and anonymous cloud discovery at <code>/metadata/endpoints</code>.</p>
+      <div class="ev">az cloud register autodetects the family from the discovery document</div></div>
+    <div class="card"><h3>Microsoft.Authorization <span class="tag t-ship">sdk-witnessed</span></h3>
+      <p>Built-in role definitions with their real GUIDs, custom definitions whose <code>assignableScopes</code> are enforced rather than merely stored, assignments at any scope with ARM's status codes, duplicate refusal, and scope inheritance on read. Group principals resolve through the token's <code>groups</code> claim, so a user never named in an assignment is authorized through it.</p>
+      <div class="ev">armauthorization and az role assignment drive it in CI</div></div>
+    <div class="card"><h3>Deny assignments and ABAC <span class="tag t-ship">witnessed</span></h3>
+      <p>Deny assignments are read-only over ARM as they are in Azure, and they are evaluated: a deny beats the role assignment granting the same action, with wildcards, <code>notDataActions</code> carve-outs, <code>excludePrincipals</code> and <code>doNotApplyToChildScopes</code> all deciding the outcome. The version 2.0 condition language is parsed and evaluated, and a condition ARM would reject is refused at write time rather than stored.</p>
+      <div class="ev">parity.md, Microsoft.Authorization; az rest reads them and is refused a write</div></div>
+    <div class="card"><h3>Microsoft.Resources <span class="tag t-ship">sdk-witnessed</span></h3>
+      <p>Tenants and subscriptions discovery, resource groups with case-insensitive names and PUT-as-upsert, the subscription-wide resource list the CLI consults when a command names a resource without its group, and an asynchronous group delete where an <code>armresources</code> poller genuinely observes <code>InProgress</code> before <code>Succeeded</code>.</p>
+      <div class="ev">armresources, azure-mgmt-resource and @azure/arm-resources, all in CI</div></div>
+    <div class="card"><h3>Microsoft.KeyVault <span class="tag t-ship">witnessed</span></h3>
+      <p>Vault CRUD with tags, SKU and <code>vaultUri</code>, access policies with the <code>add</code>, <code>replace</code> and <code>remove</code> operations, and the RBAC and purge-protection switches fed through to the data plane. Vault-level soft delete is real: a deleted vault holds its name, appears under <code>deletedVaults</code> with a purge date, and comes back through <code>createMode: recover</code>.</p>
+      <div class="ev">armkeyvault plus the three-process arm-chain job in azure-keyvault-emulator</div></div>
+    <div class="card"><h3>Microsoft.Fabric <span class="tag t-wip">partly emulated</span></h3>
+      <p>Capacity CRUD with the F-series SKU ladder, suspend and resume as real <code>202</code> long-running operations, check-name-availability, and the SKU lists <code>armfabric</code> deserialises. Two rows are graded emulated rather than real and stay that way on the page: <code>list_usages</code> reports provisioned capacity units, not consumed compute, and <code>properties.overage</code> is stored without bursting or throttling.</p>
+      <div class="ev">armfabric, azure-mgmt-fabric and @azure/arm-fabric; the SKU list is the go-only row</div></div>
+    <div class="card"><h3>Emulator-only controls <span class="tag t-ship">by design</span></h3>
+      <p>A controllable clock for deterministic token expiry, fault injection to exercise SDK retry paths, and two family feeds that hand effective assignments and Fabric capacities to the sibling data planes. Azure has no public equivalent of the feeds, so there is no ARM behaviour to grade them against, and they are deliberately thin.</p>
+      <div class="ev">parity.md, the emulator-only table; graded separately from ARM claims</div></div>
+    <div class="card"><h3>Declared out of scope <span class="tag t-plan">not built</span></h3>
+      <p>Arbitrary resource providers, template and Bicep deployments, management groups and cross-tenant topology, Azure Policy and Resource Graph, private endpoints, Managed HSM, and just-in-time elevation. Each is listed with the reason, and a row appears in the boundary table or the graded tables, never both.</p>
+      <div class="ev">parity.md, the scope boundary; <span id="scope-count">&mdash;</span> declared exclusions</div></div>
+    <div class="card"><h3>Compared against real Azure <span class="tag t-none" id="verified-tag">&mdash;</span></h3>
+      <p>There is no differential harness in this repository, and no run against a real subscription has ever happened. Every green row rests on Microsoft's published REST specifications and on Microsoft's own clients driving the emulator, which is the strongest evidence available here and is still not Azure.</p>
+      <div class="ev">no witness carries a verified: tier</div></div>
+  </div>
+</div></section>
+
+<section class="sec" id="honest"><div class="wrap">
+  <h2>Honest status</h2>
+  <p class="lede">The numbers above are not typed into this page. The build fails if they are.</p>
+  <div class="honest">
+    <h3>Where the evidence comes from</h3>
+    <p>Every row the parity ledger grades green must name a witness in <code>docs/witnesses.json</code>, and <code>check_witnesses.py --strict</code> fails CI when a claim carries none or names a test that no longer exists. A renamed test leaving a green row behind is a lie the reader cannot see, so the manifest is what makes the claim checkable at all.</p>
+    <div class="tiers">
+      <code>ci:</code><span>a CI job driving a packaged external client. The strongest tier here.</span>
+      <code>sdk:</code><span>Microsoft's own management SDK does the talking, in-process.</span>
+      <code>go:</code><span>our own client on both ends. Proves only that the emulator agrees with itself.</span>
+      <code>verified</code><span>compared against a running Azure subscription. <b id="verified-sentence">&mdash;</b></span>
+    </div>
+    <p style="margin-top:16px"><b id="third-party-sentence">&mdash;</b> The rest is worth naming rather than burying: a claim whose only witness is a <code>go:</code> test has been proved against nothing external, and the tier exists so that it is visible in the ledger rather than rounded up into the green total.</p>
+    <p>Two defects on this page were found by third-party clients and not by our own tests: Microsoft's JavaScript and .NET clients join endpoint and scope without normalising, so every request began <code>//subscriptions/</code>, and the redirect to the clean path cost them their <code>Authorization</code> header; and a ten-year certificate that Apple platforms refuse to trust at all. Both would have stayed green under our own client forever.</p>
+    <p>Coverage is measured in the same build that publishes this page, so the figure in the tile and the badge in the README cannot drift apart. It scores the unit and in-process server suites only. What catches consumer-facing defects is the real-client fleet, which no percentage scores.</p>
+  </div>
+</div></section>
+
+<section class="sec" id="get"><div class="wrap">
+  <h2>Get it</h2>
+  <p class="lede">One binary, or one container. No database to provision.</p>
+<pre><code>go install github.com/calvinchengx/arm-emulator/cmd/arm-emulator@latest
+brew install calvinchengx/tap/arm-emulator
+winget install calvinchengx.arm-emulator
+docker pull ghcr.io/calvinchengx/arm-emulator:latest</code></pre>
+  <p>Full details, including the entra-emulator pairing, are in <a href="docs/02-installation/">installation</a>.</p>
+</div></section>
+
+<section class="sec" id="run"><div class="wrap">
+  <h2>Run it</h2>
+  <p class="lede">The pair is the point: entra-emulator issues the ARM-audience token, this emulator verifies it.</p>
+<pre><code>git clone https://github.com/calvinchengx/arm-emulator
+cd arm-emulator
+make up       # entra-emulator + arm-emulator
+make status   # is the pair actually usable?
+make doctor   # what is missing from the toolchain?</code></pre>
+  <p>Then register the family as a cloud and let the CLI discover the rest of it:</p>
+<pre><code>az cloud register -n emulator --endpoint-resource-manager https://localhost:8443
+az cloud set -n emulator
+az login --service-principal -u "$CLIENT_ID" -p "$CLIENT_SECRET" --tenant "$TENANT_ID"
+az group create -n demo -l westeurope</code></pre>
+  <p>The <a href="docs/01-quickstart/">quickstart</a> carries the working values; <a href="docs/05-authorization/">authorization</a> walks an assignment from the CLI through to a Key Vault request being allowed, and <a href="docs/08-testing/">testing</a> explains what each suite proves.</p>
+</div></section>
+
+<footer><div class="wrap">
+  Clean-room: built from Microsoft's public documentation and the pinned <code>azure-rest-api-specs</code> OpenAPI specifications, with Microsoft's own management clients as the conformance oracle. No Microsoft source, and nothing decompiled. The <a href="docs/parity/">parity ledger</a> is the only place a capability is graded.
+</div></footer>
+
+<script>
+(function () {
+  function text(id, value) { var el = document.getElementById(id); if (el) { el.textContent = value; } }
+  function json(name) {
+    return fetch(name).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+  }
+
+  // The witness manifest, copied beside this page at build time. Counting the
+  // distinct witness references rather than the claims: a claim is a ledger
+  // row, a witness is a thing that runs, and one witness can cover several.
+  json('witnesses-manifest.json').then(function (d) {
+    if (!d) { return; }
+    var seen = {};
+    Object.keys(d).forEach(function (claim) {
+      (d[claim].witnesses || []).forEach(function (w) { seen[w] = true; });
+    });
+    text('witness-count', Object.keys(seen).length);
+  });
+
+  // parity.md is the ledger, read here through a summary the build derives
+  // from it. The one number this page must never get wrong is how many rows
+  // have been compared against Azure, so it is counted rather than asserted:
+  // the day a differential run happens, the page changes without anyone
+  // remembering to edit it.
+  json('parity-summary.json').then(function (d) {
+    if (!d) { return; }
+    text('claims-witnessed', d.witnessed);
+    text('claims-green', d.green);
+    text('third-party-count', d.third_party);
+    text('client-count', d.clients);
+    text('scope-count', d.out_of_scope);
+    text('verified-count', d.verified);
+    text('verified-tag', d.verified ? d.verified + ' verified' : 'never run');
+    text('verified-sentence', d.verified
+      ? d.verified + ' rows carry it.'
+      : 'No row carries it, and no harness exists to produce it.');
+    text('third-party-sentence', d.third_party + ' of the ' + d.claims
+      + ' claims in the manifest carry a ci: or sdk: witness, which means software'
+      + ' Microsoft wrote drove the surface being claimed.');
+  });
+
+  // Written by scripts/coverage_badges.py in the same job that publishes this
+  // page, from a coverage profile measured there. The README badge reads the
+  // very same document through shields.io.
+  json('coverage-go.json').then(function (d) {
+    if (d && d.message) { text('coverage-go', d.message); }
+  });
+
+  json('https://api.github.com/repos/calvinchengx/arm-emulator/releases/latest').then(function (d) {
+    if (d && d.tag_name) { text('release-tag', d.tag_name); }
+  });
+}());
+</script>
+</body>
+</html>

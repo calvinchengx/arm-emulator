@@ -14,7 +14,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const REPO = join(here, '..', '..');
 const DOCS_SRC = join(REPO, 'docs');
 const OUT = join(here, '..', 'src', 'content', 'docs');
-export const BASE = '/arm-emulator/';
+export const BASE = '/arm-emulator/docs/';
 
 // The parity map is the one doc without a reading-order number: it is a living
 // reference rather than a chapter, and its URL is just /parity/.
@@ -35,7 +35,7 @@ function parityStamp() {
 // Docs are `NN-name.md` chapters, plus the un-numbered parity map.
 const DOC_RE = /^(\d{2}-.*|parity)\.md$/;
 
-// Rewrite `](./|docs/ NN-slug.md#anchor)` → `](/arm-emulator/NN-slug/#anchor)`.
+// Rewrite `](./|docs/ NN-slug.md#anchor)` → `](/arm-emulator/docs/NN-slug/#anchor)`.
 const LINK_RE = /\]\((?:\.\/|docs\/)?(\d{2}-[a-z0-9-]+|parity)\.md(#[^)]*)?\)/g;
 // Repo-relative links (`../docker-compose.yml`) are correct on GitHub, where /docs sits one
 // level under the repo root — but they are dead on the site, whose pages are
