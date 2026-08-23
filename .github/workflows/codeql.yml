@@ -29,7 +29,34 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # A docs-only change cannot alter what these jobs find. The gate is a JOB
+  # rather than `paths-ignore:` on the workflow: a job skipped by `if:` reports
+  # as successful to branch protection, while a workflow that never ran leaves
+  # its check "Expected" forever and blocks the merge. This repository has no
+  # protection today, which is what makes paths-ignore a landmine armed later
+  # by a settings change nobody would connect to CI.
+  #
+  # See .github/changed-files.sh, which fails OPEN on every way of not knowing:
+  # a first push, a force push, an unreadable comparison, an empty list, a
+  # truncated one, a tag, or any path it does not recognise.
+  changes:
+    name: Does this change any code?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: The gate proves itself before it is trusted
+        run: ./.github/changed-files.test.sh
+      - id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./.github/changed-files.sh
+
   analyze:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     permissions:

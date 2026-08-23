@@ -10,7 +10,34 @@ permissions:
   contents: read
 
 jobs:
+  # A docs-only change cannot alter what these jobs find. The gate is a JOB
+  # rather than `paths-ignore:` on the workflow: a job skipped by `if:` reports
+  # as successful to branch protection, while a workflow that never ran leaves
+  # its check "Expected" forever and blocks the merge. This repository has no
+  # protection today, which is what makes paths-ignore a landmine armed later
+  # by a settings change nobody would connect to CI.
+  #
+  # See .github/changed-files.sh, which fails OPEN on every way of not knowing:
+  # a first push, a force push, an unreadable comparison, an empty list, a
+  # truncated one, a tag, or any path it does not recognise.
+  changes:
+    name: Does this change any code?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: The gate proves itself before it is trusted
+        run: ./.github/changed-files.test.sh
+      - id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./.github/changed-files.sh
+
   test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: Build, vet & tests (incl. real ARM SDK e2e vs entra-emulator)
     strategy:
       fail-fast: false
@@ -64,6 +91,8 @@ jobs:
   # the ubuntu runner already; entra comes from its pinned release, so this
   # leg also proves the released pair works together.
   az-cli:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: The real az CLI drives arm as a registered cloud
     runs-on: ubuntu-latest
     steps:
@@ -79,6 +108,8 @@ jobs:
       - run: ./e2e/az-cli/run.py
 
   sdks:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: Python, JS and .NET SDKs drive arm
     runs-on: ubuntu-latest
     steps:
@@ -117,7 +148,16 @@ jobs:
           version: "0.11.32"
       - run: uv run --no-project --python 3.12 python scripts/check_witnesses.py --strict
 
+      # THE DOCS' OWN LINK GATE, which existed in scripts/ and was run by
+      # nothing: every sibling emulator runs `check_docs_links.py` from CI and
+      # this repository did not, so a docs page could link at a page that does
+      # not exist and nothing said so. Here rather than in docs-site.yml
+      # because it belongs beside the other check that reads docs, and for the
+      # same reason as that one it is NOT gated on `changes`.
+      - run: uv run --no-project --python 3.12 python scripts/check_docs_links.py --strict
   lint:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: golangci-lint
     runs-on: ubuntu-latest
     steps:
