@@ -144,6 +144,8 @@ function convertBody(raw, where = 'docs') {
 }
 
 
+const entries = [];
+
 function convert(name) {
   const raw = readFileSync(join(DOCS_SRC, name), 'utf8');
   const h1 = raw.split('\n').find((l) => /^#\s+/.test(l));
@@ -154,6 +156,9 @@ function convert(name) {
   // under src/content/docs/ is git-ignored), not Starlight's default path.
   const editUrl = `${REPO_URL}/edit/main/docs/${name}`;
   const desc = description(raw);
+  // Recorded for llms.txt, so its entries are the ones actually published
+  // rather than a second derivation that can disagree.
+  entries.push({ slug: name.replace(/\.md$/, ''), title, desc });
   const frontmatter =
     `---\ntitle: ${yamlEscape(title)}\n` +
     (desc ? `description: ${yamlEscape(desc)}\n` : '') +
@@ -218,6 +223,39 @@ editUrl: false
   writeFileSync(join(OUT, 'index.md'), frontmatter + body);
 }
 
+
+// ---------------------------------------------------------------------------
+// llms.txt for this site.
+//
+// A PROPOSED convention (llmstxt.org), not a standard: a markdown file at a
+// site root giving a model a short, link-dense map of what the site holds, so
+// a crawler need not infer the shape from HTML. No major provider has
+// committed to consuming it. It is cheap and cannot hurt; it is not a
+// substitute for the per-page descriptions above, which affect search today.
+//
+// GENERATED FROM THE SAME PASS that writes the pages, so the title, the
+// description and the URL of every entry are the ones actually published. A
+// hand-written index of a docs tree is wrong within a fortnight.
+//
+// Written to public/, which Astro copies to the root of the built site, so it
+// lands beside the pages it describes at whatever `base` this site uses.
+const LLMS_TITLE = 'ARM Emulator';
+const LLMS_BLURB = 'A clean-room local emulator of the Azure Resource Manager control plane and its Microsoft.Authorization RBAC, so an agent discovers that no role assignment means no access rather than being told. Scoped to the authorization slice, not all of ARM.';
+
+function writeLlms(entries) {
+  const origin = 'https://calvinchengx.github.io';
+  const out = [`# ${LLMS_TITLE}`, '', `> ${LLMS_BLURB}`, '', '## Documentation', ''];
+  for (const e of entries) {
+    const url = `${origin}${BASE}${e.slug}/`;
+    out.push(e.desc ? `- [${e.title}](${url}): ${e.desc}` : `- [${e.title}](${url})`);
+  }
+  out.push('');
+  const dir = join(here, '..', 'public');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'llms.txt'), out.join('\n'));
+  return entries.length;
+}
+
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 const names = readdirSync(DOCS_SRC).filter((n) => DOC_RE.test(n)).sort();
@@ -229,7 +267,8 @@ const info = writeParityHistory(OUT, PARITY, { convertBody });
 const DATA = join(here, '..', 'src', 'data');
 mkdirSync(DATA, { recursive: true });
 writeFileSync(join(DATA, 'parity-versions.json'), JSON.stringify(parityManifest(PARITY), null, 2) + '\n');
+const llms = writeLlms(entries);
 console.log(
-  `sync-docs: wrote ${names.length} docs + index to src/content/docs/ ` +
+  `sync-docs: wrote ${names.length} docs + index to src/content/docs/, ${llms} entries to public/llms.txt ` +
     `(parity ${info.version}; ${info.snapshots.length} tagged snapshot(s))`,
 );
