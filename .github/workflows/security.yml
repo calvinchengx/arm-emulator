@@ -20,30 +20,42 @@ permissions:
   contents: read
 
 jobs:
-  # A docs-only change cannot alter what these jobs find. The gate is a JOB
-  # rather than `paths-ignore:` on the workflow: a job skipped by `if:` reports
-  # as successful to branch protection, while a workflow that never ran leaves
-  # its check "Expected" forever and blocks the merge. This repository has no
-  # protection today, which is what makes paths-ignore a landmine armed later
-  # by a settings change nobody would connect to CI.
+  # THE DOCS LANE. Jobs that cannot observe a markdown file are gated on
+  # `docs_only != 'true'`; the jobs that READ the docs are not, because they
+  # must run on exactly those changes. See scripts/docs_only_change.py.
   #
-  # See .github/changed-files.sh, which fails OPEN on every way of not knowing:
-  # a first push, a force push, an unreadable comparison, an empty list, a
-  # truncated one, a tag, or any path it does not recognise.
+  # Ported from fabric-emulator, which worked this out first.
   changes:
-    name: Does this change any code?
+    name: Is this change documentation only?
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      code: ${{ steps.filter.outputs.code }}
+      docs_only: ${{ steps.classify.outputs.docs_only }}
     steps:
+      # Full history: the classifier diffs against the base, which a depth-1
+      # checkout cannot see.
       - uses: actions/checkout@v7
-      - name: The gate proves itself before it is trusted
-        run: ./.github/changed-files.test.sh
-      - id: filter
+        with:
+          fetch-depth: 0
+      # Beside the real classification, every time. A classifier that stopped
+      # matching would answer `false` forever: safe, plausible, and silently
+      # useless. The cases are the only thing that would notice.
+      - run: python3 scripts/docs_only_change.py --self-test
+      - id: classify
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: ./.github/changed-files.sh
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          # A force push and a branch's first commit both give the null sha.
+          # Neither is a docs change; both run everything.
+          if ! git rev-parse -q --verify "$BASE^{commit}" >/dev/null; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "base '$BASE' is not a commit here; running everything"
+            exit 0
+          fi
+          git diff --name-status "$BASE...$HEAD_SHA" | python3 scripts/docs_only_change.py
+
 
   secrets:
     name: gitleaks
@@ -80,7 +92,7 @@ jobs:
 
   vulnerabilities:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.docs_only != 'true'
     name: govulncheck
     runs-on: ubuntu-latest
     # A wedged run must fail rather than sit in GitHub's 6-hour default,
