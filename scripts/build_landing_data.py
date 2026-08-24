@@ -17,7 +17,7 @@ the tile and the badge cannot disagree. A second copy of that parser under a
 comment saying "keep in step" is a defect already filed, with no owner and no
 failing test.
 
-    ./scripts/build_landing_data.py --out _site --landing site/index.html
+    ./scripts/build_landing_data.py --out _site --landing website/src/pages/index.astro
 """
 
 from __future__ import annotations
