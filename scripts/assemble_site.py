@@ -40,7 +40,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "website" / "dist"
-LANDING = ROOT / "site" / "index.html"
+# The landing page is BUILT, not hand-written: website/src/pages/index.astro
+# lands here as part of the Starlight build. There is no second authoring
+# surface to keep in step, which is the whole reason it moved.
+LANDING = DIST / "index.html"
 ROUTES = ROOT / "website" / "published-routes.txt"
 BASE = "/arm-emulator/docs/"
 
@@ -92,7 +95,10 @@ def assemble(out: Path) -> int:
             f"assemble_site: no Starlight build at {DIST}. Run the docs build first."
         )
     if not LANDING.is_file():
-        raise SystemExit(f"assemble_site: no landing page at {LANDING}")
+        raise SystemExit(
+            f"assemble_site: no landing page at {LANDING} -- the Astro build should\n"
+            f"have written it from website/src/pages/index.astro"
+        )
 
     if out.exists():
         shutil.rmtree(out)

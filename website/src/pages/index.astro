@@ -1,3 +1,28 @@
+---
+// The landing page, as an Astro page rather than a hand-written file.
+//
+// WHY IT MOVED. It used to be site/index.html, copied to the site root by
+// scripts/assemble_site.py and seen by nothing else -- not the Astro build,
+// not `astro dev`, not a single check that protects the docs. fabric-emulator
+// ran the two-surface version of this and its assembler records how it ended:
+// a hand-written root page and an Astro page under /docs/ drifted until the
+// version pill read "unreleased" on a repository with 33 tags. One source now,
+// served at BOTH doors from one build output.
+//
+// THE RULE THAT MAKES ONE FILE CORRECT AT TWO DEPTHS: nothing here may be
+// page-relative. This exact file is served at /arm-emulator/ AND at
+// /arm-emulator/docs/, so `href="docs/parity/"` would resolve to two different
+// places and be wrong at one of them. Every link and every fetch goes through
+// one of the two absolute prefixes below.
+//
+//   base -- where the DOCS live:  /arm-emulator/docs/
+//   root -- where the SITE root is: /arm-emulator/
+//
+// `root` is derived by stripping the trailing `docs/`, the same idiom
+// SiteTitle.astro uses for its back-link, so neither is hardcoded.
+const base = import.meta.env.BASE_URL;
+const root = base.replace(/docs\/$/, "");
+---
 <!doctype html>
 <html lang="en">
 <head>
@@ -114,18 +139,21 @@ nav li a.docs{color:var(--accent);font-weight:600}
 .family-group .you{font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;
   color:var(--muted);margin-top:2px}
 footer{padding:40px 0;color:var(--muted);font-size:.86rem;border-top:1px solid var(--line)}
+.chapters{list-style:none;padding:0;display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.chapters a{display:block;padding:12px 14px;border:1px solid var(--line,#e3e5e9);border-radius:10px;text-decoration:none}
+.chapters b{display:block}
 </style>
 </head>
 <body>
 
 <nav><div class="wrap">
-  <a class="brand" href="./">ARM Emulator</a>
+  <a class="brand" href={root}>ARM Emulator</a>
   <ul>
     <li><a href="#get">Get it</a></li>
     <li><a href="#run">Run it</a></li>
     <li><a href="#honest">Status</a></li>
     <li><a href="https://github.com/calvinchengx/arm-emulator">GitHub</a></li>
-    <li><a class="docs" href="docs/">Documentation &rarr;</a></li>
+    <li><a class="docs" href="#docs">Documentation &rarr;</a></li>
   </ul>
 </div></nav>
 
@@ -138,7 +166,7 @@ footer{padding:40px 0;color:var(--muted);font-size:.86rem;border-top:1px solid v
   <p>The <code>az</code> CLI and Microsoft's management SDKs for Go, Python, JavaScript and .NET run against it unmodified, which is the only reason any claim on this page is worth anything.</p>
   <p class="claim">Every capability below names the check that proves it. Nothing here has been compared against a live Azure subscription, and this page says where that matters.</p>
   <div class="cta">
-    <a class="btn primary" href="docs/">Read the docs</a>
+    <a class="btn primary" href={`${base}01-quickstart/`}>Read the docs</a>
     <a class="btn ghost" href="https://github.com/calvinchengx/arm-emulator">Source on GitHub</a>
     <a class="btn ghost" href="#run">Run it locally</a>
     <a class="btn ghost" href="#honest">Honest status</a>
@@ -228,7 +256,7 @@ footer{padding:40px 0;color:var(--muted);font-size:.86rem;border-top:1px solid v
 brew install calvinchengx/tap/arm-emulator
 winget install calvinchengx.arm-emulator
 docker pull ghcr.io/calvinchengx/arm-emulator:latest</code></pre>
-  <p>Full details, including the entra-emulator pairing, are in <a href="docs/02-installation/">installation</a>.</p>
+  <p>Full details, including the entra-emulator pairing, are in <a href={`${base}02-installation/`}>installation</a>.</p>
 </div></section>
 
 <section class="sec" id="run"><div class="wrap">
@@ -244,11 +272,35 @@ make doctor   # what is missing from the toolchain?</code></pre>
 az cloud set -n emulator
 az login --service-principal -u "$CLIENT_ID" -p "$CLIENT_SECRET" --tenant "$TENANT_ID"
 az group create -n demo -l westeurope</code></pre>
-  <p>The <a href="docs/01-quickstart/">quickstart</a> carries the working values; <a href="docs/05-authorization/">authorization</a> walks an assignment from the CLI through to a Key Vault request being allowed, and <a href="docs/08-testing/">testing</a> explains what each suite proves.</p>
+  <p>The <a href={`${base}01-quickstart/`}>quickstart</a> carries the working values; <a href={`${base}05-authorization/`}>authorization</a> walks an assignment from the CLI through to a Key Vault request being allowed, and <a href={`${base}08-testing/`}>testing</a> explains what each suite proves.</p>
+</div></section>
+
+
+<section id="docs"><div class="wrap">
+  <h2>Documentation</h2>
+  <!-- THE CURATED INDEX LIVES HERE NOW, and this note is why its absence from
+       sync-docs.mjs reads as deliberate. This page IS the docs root: it is
+       served at /arm-emulator/ and at /arm-emulator/docs/ from one build
+       output. A generated index.md would have collided with it on that second
+       route, and before the move the two said the same thing in two places --
+       the failure fabric-emulator hit, where a hand-written root page and an
+       Astro page under /docs/ drifted until one of them advertised a release
+       that did not exist. -->
+  <ul class="chapters">
+    <li><a href={`${base}01-quickstart/`}><b>Quickstart</b> &mdash; bring up the pair, register the cloud, make an assignment that bites</a></li>
+    <li><a href={`${base}02-installation/`}><b>Installation</b> &mdash; brew, winget, go install, Docker, compose</a></li>
+    <li><a href={`${base}03-architecture/`}><b>Architecture</b> &mdash; where this sits in the family, and the trust model</a></li>
+    <li><a href={`${base}05-authorization/`}><b>Authorization</b> &mdash; role definitions, assignments, scope inheritance, groups</a></li>
+    <li><a href={`${base}06-keyvault-provider/`}><b>Microsoft.KeyVault</b> &mdash; the vault resource and its access policies</a></li>
+    <li><a href={`${base}10-fabric-provider/`}><b>Microsoft.Fabric</b> &mdash; capacities, the ARM resource fabric-emulator consumes</a></li>
+    <li><a href={`${base}07-family-feed/`}><b>The family feed</b> &mdash; how a data plane learns what ARM decided</a></li>
+    <li><a href={`${base}08-testing/`}><b>Testing</b> &mdash; the controllable clock, injected faults, and what CI verifies</a></li>
+    <li><a href={`${base}parity/`}><b>Parity</b> &mdash; what is real, what is emulated, and what is deliberately absent</a></li>
+  </ul>
 </div></section>
 
 <footer><div class="wrap">
-  Clean-room: built from Microsoft's public documentation and the pinned <code>azure-rest-api-specs</code> OpenAPI specifications, with Microsoft's own management clients as the conformance oracle. No Microsoft source, and nothing decompiled. The <a href="docs/parity/">parity ledger</a> is the only place a capability is graded.
+  Clean-room: built from Microsoft's public documentation and the pinned <code>azure-rest-api-specs</code> OpenAPI specifications, with Microsoft's own management clients as the conformance oracle. No Microsoft source, and nothing decompiled. The <a href={`${base}parity/`}>parity ledger</a> is the only place a capability is graded.
 <!-- BEGIN family-footer (generated by scripts/render_footer.py) -->
 <nav class="family" aria-label="The rest of the family">
   <p class="family-lede">Eleven documentation sites, one ecosystem. Every emulator grades itself in a parity ledger, and every green claim names the test that proves it.</p>
@@ -287,7 +339,7 @@ az group create -n demo -l westeurope</code></pre>
 <!-- END family-footer -->
 </div></footer>
 
-<script>
+<script define:vars={{ ROOT: root }}>
 (function () {
   function text(id, value) { var el = document.getElementById(id); if (el) { el.textContent = value; } }
   function json(name) {
@@ -297,7 +349,7 @@ az group create -n demo -l westeurope</code></pre>
   // The witness manifest, copied beside this page at build time. Counting the
   // distinct witness references rather than the claims: a claim is a ledger
   // row, a witness is a thing that runs, and one witness can cover several.
-  json('witnesses-manifest.json').then(function (d) {
+  json(ROOT + 'witnesses-manifest.json').then(function (d) {
     if (!d) { return; }
     var seen = {};
     Object.keys(d).forEach(function (claim) {
@@ -311,7 +363,7 @@ az group create -n demo -l westeurope</code></pre>
   // have been compared against Azure, so it is counted rather than asserted:
   // the day a differential run happens, the page changes without anyone
   // remembering to edit it.
-  json('parity-summary.json').then(function (d) {
+  json(ROOT + 'parity-summary.json').then(function (d) {
     if (!d) { return; }
     text('claims-witnessed', d.witnessed);
     text('claims-green', d.green);
@@ -331,7 +383,7 @@ az group create -n demo -l westeurope</code></pre>
   // Written by scripts/coverage_badges.py in the same job that publishes this
   // page, from a coverage profile measured there. The README badge reads the
   // very same document through shields.io.
-  json('coverage-go.json').then(function (d) {
+  json(ROOT + 'coverage-go.json').then(function (d) {
     if (d && d.message) { text('coverage-go', d.message); }
   });
 

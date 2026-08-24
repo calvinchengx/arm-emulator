@@ -118,7 +118,9 @@ docs-build: ## Build the published site into ./_site (what CI deploys)
 	  echo "go coverage: $${pct}%" && \
 	  $(UVPY) scripts/coverage_badges.py --out _site --go "$$pct"; \
 	fi
-	$(UVPY) scripts/build_landing_data.py --out _site --landing site/index.html
+	@# --landing is the SOURCE now, not the built copy: it is the file an author
+	@# edits, so a hardcoded number is caught where it was typed.
+	$(UVPY) scripts/build_landing_data.py --out _site --landing website/src/pages/index.astro
 
 docs-serve: docs-build ## …and serve it locally at its published URLs (DOCS_PORT=8099)
 	$(UVPY) scripts/assemble_site.py --serve --site _site --port $(DOCS_PORT)

@@ -166,62 +166,17 @@ function convert(name) {
   return frontmatter + body;
 }
 
-function writeIndex() {
-  const body = rewriteLinks(
-    `Local emulator of the **Azure Resource Manager control plane** in a single Go binary — ` +
-      `subscriptions, resource groups, \`Microsoft.Authorization\` role definitions and ` +
-      `**role assignments** with real scope inheritance, and \`Microsoft.KeyVault/vaults\` ` +
-      `with their access policies.
-
-` +
-      `The point: Microsoft's own management clients run against it **unmodified** — the ` +
-      `\`az\` CLI via \`az cloud register\` (the sovereign-cloud path), and the ` +
-      `\`armresources\` / \`armauthorization\` / \`armkeyvault\` SDKs — and the assignments ` +
-      `they write are genuinely enforced by the sibling data planes. ` +
-      `\`az role assignment create\` decides whether ` +
-      `[azure-keyvault-emulator](https://calvinchengx.github.io/azure-keyvault-emulator/) ` +
-      `answers a secret read with \`200\` or \`403\`.
-
-` +
-      `:::caution
-Local development tool only — intentionally insecure (self-signed TLS, and ` +
-      `ARM's own surface authenticates but does not self-govern). It emulates the control-plane ` +
-      `**contract**, not a security boundary. Run it on \`localhost\` only.
-:::
-
-` +
-      `## Start here
-
-` +
-      `- [Quickstart](01-quickstart.md) — bring up the pair, register the cloud, make an assignment that bites
-` +
-      `- [Installation](02-installation.md) — brew, winget, go install, Docker, compose
-` +
-      `- [Architecture](03-architecture.md) — where this sits in the family, and the trust model
-` +
-      `- [Authorization](05-authorization.md) — role definitions, assignments, scope inheritance, groups
-` +
-      `- [Microsoft.KeyVault](06-keyvault-provider.md) — the vault resource and its access policies
-` +
-      `- [Microsoft.Fabric](10-fabric-provider.md) — capacities, the ARM resource fabric-emulator consumes
-` +
-      `- [The family feed](07-family-feed.md) — how a data plane learns what ARM decided
-` +
-      `- [Testing](08-testing.md) — the controllable clock, injected faults, and what CI verifies
-` +
-      `- [Parity](parity.md) — what is real, what is emulated, and what is deliberately absent
-`,
-  );
-  const frontmatter =
-    `---
-title: ARM Emulator
-description: A local emulator of the Azure Resource Manager control plane, driven by the real az CLI and management SDKs.
-editUrl: false
----
-
-`;
-  writeFileSync(join(OUT, 'index.md'), frontmatter + body);
-}
+// NO writeIndex() ANY MORE, and this note is here so its absence reads as a
+// decision rather than an omission.
+//
+// The docs root is `website/src/pages/index.astro` now -- the landing page,
+// served both at the site root and at the docs base from one build output. An
+// index.md here would have claimed the SAME route and collided with it.
+//
+// Its curated chapter list was not lost: it moved onto that page, under #docs.
+// Keeping both was the arrangement fabric-emulator had, where a hand-written
+// root page and an Astro page under /docs/ said the same thing separately and
+// drifted until one advertised a release that did not exist.
 
 
 // ---------------------------------------------------------------------------
@@ -262,13 +217,12 @@ const names = readdirSync(DOCS_SRC).filter((n) => DOC_RE.test(n)).sort();
 for (const name of names) {
   writeFileSync(join(OUT, name), convert(name));
 }
-writeIndex();
 const info = writeParityHistory(OUT, PARITY, { convertBody });
 const DATA = join(here, '..', 'src', 'data');
 mkdirSync(DATA, { recursive: true });
 writeFileSync(join(DATA, 'parity-versions.json'), JSON.stringify(parityManifest(PARITY), null, 2) + '\n');
 const llms = writeLlms(entries);
 console.log(
-  `sync-docs: wrote ${names.length} docs + index to src/content/docs/, ${llms} entries to public/llms.txt ` +
+  `sync-docs: wrote ${names.length} docs (no index: the landing page is the docs root) to src/content/docs/, ${llms} entries to public/llms.txt ` +
     `(parity ${info.version}; ${info.snapshots.length} tagged snapshot(s))`,
 );
