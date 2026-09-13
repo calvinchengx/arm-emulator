@@ -126,7 +126,7 @@ what it did not set out to do, and why.
 
 ## Test coverage
 
-**98.7%**, with a CI floor at 98%. Every reachable statement is covered,
+**98.2%**, with a CI floor at 98%. Every reachable statement is covered,
 including the ARM error branches (tables dropped or `BEFORE DELETE` triggers
 fired under live handlers), the row-scan failures (SQLite's dynamic typing
 lets a text value sit in an INTEGER column), the TLS persistence failures,
@@ -138,3 +138,9 @@ fails: `crypto/rand` erroring (inside `NewGUID` and certificate generation)
 and `sql.Open` rejecting a driver name compiled into the binary. Reaching
 those would mean adding mutable global seams to production crypto code, so
 they stay honestly uncovered rather than faked.
+
+The percentage above is the only one in this repository typed by hand, and it
+had drifted half a point before anything checked it. `scripts/coverage_badges.py`
+now compares it against the profile CI measures and fails the build when they
+disagree by more than the rounding the figure implies — so it is edited when
+the measurement moves, or the build is red.

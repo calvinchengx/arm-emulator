@@ -95,7 +95,9 @@ DOCS_PKG  ?= arm-emulator-docs
 DOCS_PORT ?= 8099
 # The go coverage badge needs a full `go test ./...`. It is part of the site,
 # so it is part of this target; pass GO_COVERAGE=skip when you are editing
-# prose and can live with one badge missing from the preview.
+# prose and can live with one badge missing from the preview. The same
+# measurement is what docs/parity.md's prose figure is checked against, so a
+# skipped measurement is also an unchecked ledger.
 GO_COVERAGE ?= measure
 # The interpreter CI uses, pinned. These scripts are stdlib-only, hence
 # --no-project: no environment to resolve, and a local 3.9 cannot pass
@@ -111,7 +113,7 @@ docs-build: ## Build the published site into ./_site (what CI deploys)
 	$(UVPY) scripts/assemble_site.py --out _site
 	@# AFTER the assembler, which clears _site before it writes.
 	@if [ "$(GO_COVERAGE)" = "skip" ]; then \
-	  echo "GO_COVERAGE=skip: ./_site will be missing the go coverage badge"; \
+	  echo "GO_COVERAGE=skip: ./_site will be missing the go coverage badge, and docs/parity.md's coverage figure goes unchecked"; \
 	else \
 	  go test -coverpkg=./... -coverprofile=cover.out ./... >/dev/null && \
 	  pct=$$(go tool cover -func=cover.out | tail -1 | awk '{print $$3}' | tr -d '%') && \
