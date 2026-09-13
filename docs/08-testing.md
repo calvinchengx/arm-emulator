@@ -41,6 +41,10 @@ equivalent for the CLI is `az cloud register`; see the
 - **A 98% coverage floor** in CI, on Linux, macOS and Windows.
 - **Every 🟢 parity claim names its witness**, enforced by
   `scripts/check_witnesses.py --strict`.
+- **The coverage figure `docs/parity.md` states in prose matches the profile
+  the build measured**, enforced by `scripts/coverage_badges.py`. It is the
+  only such number typed by hand here, and it had drifted half a point before
+  anything compared the two.
 
 ## The coverage honesty note
 

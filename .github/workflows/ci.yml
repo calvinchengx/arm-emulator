@@ -129,6 +129,23 @@ jobs:
           echo "total coverage: ${total}%"
           awk -v t="$total" 'BEGIN { exit (t < 98) ? 1 : 0 }'
 
+      # docs/parity.md states the measured figure in prose, and the floor above
+      # only catches a fall THROUGH 98: coverage moving 98.2 -> 98.6 leaves the
+      # sentence wrong and every gate green. `make docs-build` runs this same
+      # check, but the docs workflow does not trigger on Go paths, so the job
+      # that can move the number has to check it too. The two lanes meet: a
+      # docs-only pull request skips this job and runs the docs workflow; a Go
+      # change, or any push to main, runs this one.
+      #
+      # Linux only: there is one figure to compare against, and it is the one
+      # the docs workflow measures, on ubuntu.
+      - name: docs/parity.md states the coverage this build measured
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          total=$(go tool cover -func=cover.out | tail -1 | awk '{print $3}' | tr -d '%')
+          python3 scripts/coverage_badges.py --go "$total"
+
   # The only witness in this repo that is a PACKAGED external client over a
   # network rather than a library linked into a Go test. `az` is installed on
   # the ubuntu runner already; entra comes from its pinned release, so this
