@@ -208,6 +208,12 @@ jobs:
           version: "0.11.32"
       - run: uv run --no-project --python 3.12 python scripts/check_witnesses.py --strict
 
+      # The published Homebrew cask is generated, so a deprecated stanza cannot
+      # be fixed in the tap: the next release overwrites it. This checks the
+      # source of the generation, which is the only place a regression can be
+      # introduced. release.yml checks the rendered cask as well.
+      - run: uv run --no-project --python 3.12 scripts/check_cask_stanzas.py
+
       # THE DOCS' OWN LINK GATE, which existed in scripts/ and was run by
       # nothing: every sibling emulator runs `check_docs_links.py` from CI and
       # this repository did not, so a docs page could link at a page that does
