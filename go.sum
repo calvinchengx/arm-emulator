@@ -8,8 +8,8 @@ github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 h1:fhqpLE3UEXi9lPaBRpQ6Xu
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0/go.mod h1:7dCRMLwisfRH3dBupKeNCioWYUZ4SS09Z14H+7i8ZoY=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2 v2.2.0 h1:Hp+EScFOu9HeCbeW8WU2yQPJd4gGwhMgKxWe+G6jNzw=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2 v2.2.0/go.mod h1:/pz8dyNQe+Ey3yBp/XuYz7oqX8YDNWVpPB0hH3XWfbc=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/fabric/armfabric v1.1.0-beta.1 h1:B+xy3jfYE2nqVD7SjPFeaByRYVRVUMI2L0vrIEvxLWs=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/fabric/armfabric v1.1.0-beta.1/go.mod h1:/LU/1gM397EsvQ3eLq44qF4GehMIz270Ucw02lfIMkQ=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/fabric/armfabric v1.1.0-beta.2 h1:6UJgyUGysSQn0Qu/hfQpAxVUEE2A4RbDpW1Zuks/uWU=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/fabric/armfabric v1.1.0-beta.2/go.mod h1:2Vmk31a/TyGv98OFgouGnYDf/MOy874TJhf1dTwvEMM=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v2 v2.0.0 h1:PTFGRSlMKCQelWwxUyYVEUqseBJVemLyqWJjvMyt0do=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v2 v2.0.0/go.mod h1:LRr2FzBTQlONPPa5HREE5+RjSCTXl7BwOvYOaWTqCaI=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.1.0 h1:2qsIIvxVT+uE6yrNldntJKlLRgxGbZ85kgtz5SNBhMw=
