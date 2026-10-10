@@ -240,4 +240,4 @@ jobs:
       # six unchecked Close calls were reported as two.
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.12.2
+          version: v2.14.0
